@@ -54,6 +54,9 @@ COPY crates/graphql-api/Cargo.toml         crates/graphql-api/Cargo.toml
 # Tools
 COPY tools/sdk-gen/Cargo.toml              tools/sdk-gen/Cargo.toml
 
+# Protobuf definitions
+COPY proto/                                proto/
+
 # Create dummy source files to cache dependency compilation
 RUN for dir in crates/*/; do \
         mkdir -p "$dir/src" && \
