@@ -1,7 +1,10 @@
 import { request } from '@umijs/max';
 
 export async function listUsers(): Promise<API.AdminUser[]> {
-  return request('/api/users', { method: 'GET' });
+  const res = await request<any>('/api/users', { method: 'GET' });
+  if (Array.isArray(res)) return res;           // interceptor unwrapped correctly
+  if (Array.isArray(res?.data)) return res.data; // AxiosResponse or ApiResponse wrapper
+  return [];
 }
 
 export async function createUser(data: API.CreateUserRequest): Promise<void> {

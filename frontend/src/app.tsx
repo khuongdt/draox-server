@@ -103,8 +103,10 @@ export const request: RequestConfig = {
   requestInterceptors: [
     (config) => {
       const token = localStorage.getItem(TOKEN_KEY);
-      if (token && config.headers) {
-        config.headers['Authorization'] = `Bearer ${token}`;
+      if (token) {
+        config.headers = Object.assign({}, config.headers, {
+          Authorization: `Bearer ${token}`,
+        });
       }
       return config;
     },
@@ -133,8 +135,12 @@ export const request: RequestConfig = {
   // Centralised error handling for HTTP-level failures
   errorConfig: {
     errorHandler: (error: unknown) => {
-      const err = error as { response?: { status?: number } };
+      const err = error as {
+        response?: { status?: number; data?: { error?: string; message?: string } };
+        message?: string;
+      };
       const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.error ?? err?.response?.data?.message;
 
       if (status === 401) {
         // Session expired — clear credentials and redirect to login
@@ -146,6 +152,11 @@ export const request: RequestConfig = {
 
       if (status === 429) {
         message.error('Rate limit exceeded. Please slow down your requests.');
+        return;
+      }
+
+      if (serverMsg) {
+        message.error(serverMsg);
         return;
       }
 

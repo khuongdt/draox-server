@@ -32,6 +32,7 @@ type ModalMode = 'create' | 'edit';
 export default function UsersPage() {
   const { data: users = [], loading, refresh } = useRequest(listUsers, {
     refreshOnWindowFocus: false,
+    onError: (e) => message.error(`Failed to load users: ${e.message}`),
   });
 
   const { initialState } = useModel('@@initialState');
