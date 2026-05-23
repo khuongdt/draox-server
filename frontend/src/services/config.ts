@@ -1,11 +1,17 @@
 import { request } from '@umijs/max';
 
-/** Fetch the current server configuration (all sections). */
 export async function getConfig(): Promise<API.ServerConfig> {
-  return request('/api/config', { method: 'GET' });
+  const res = await request<any>('/api/config', { method: 'GET' });
+  if (res && typeof res === 'object' && 'data' in res && res.data) return res.data;
+  return res ?? {};
 }
 
-/** Trigger a hot-reload of the configuration from disk. Returns status message. */
+export async function updateConfig(data: API.ServerConfig): Promise<string> {
+  const res = await request<any>('/api/config', { method: 'PUT', data });
+  return res?.message ?? res?.data?.message ?? String(res);
+}
+
 export async function reloadConfig(): Promise<string> {
-  return request('/api/config/reload', { method: 'POST' });
+  const res = await request<any>('/api/config/reload', { method: 'POST' });
+  return res?.message ?? res?.data?.message ?? String(res);
 }

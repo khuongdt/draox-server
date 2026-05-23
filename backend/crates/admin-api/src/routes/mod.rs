@@ -15,7 +15,7 @@ pub mod users;
 pub mod ws_streams;
 
 use crate::state::AppState;
-use axum::routing::{delete, get, post, put};
+use axum::routing::{get, post, put};
 use axum::Router;
 
 /// Build the complete admin API router.
@@ -90,7 +90,7 @@ pub fn build_router(state: AppState) -> Router {
             get(guard::get_reputation),
         )
         // Config
-        .route("/api/config", get(config::get_config))
+        .route("/api/config", get(config::get_config).put(config::update_config))
         .route("/api/config/reload", post(config::reload_config))
         // Billing (static paths before parameterized)
         .route("/api/billing/plans", get(billing::list_plans))

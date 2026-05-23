@@ -178,6 +178,8 @@ async fn main() -> anyhow::Result<()> {
         storage,
         jwt_config,
         auth_store,
+        config: Arc::new(std::sync::RwLock::new((*config).clone())),
+        config_path: config_path.clone(),
     };
 
     let bind_addr: std::net::SocketAddr = format!("{}:{}", config.admin_api.host, config.admin_api.port)

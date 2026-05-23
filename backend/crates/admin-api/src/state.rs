@@ -7,9 +7,10 @@ use cache_layer::CacheBackend;
 use connection_manager::SessionManager;
 use data_store::StorageBackend;
 use plugin_host::{FullMarketplaceRegistry, PluginRegistry, RouteRegistry};
+use server_config::DraoxConfig;
 use server_core::event::EventBus;
 use socket_server::tracker::ConnectionTracker;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use traffic_guard::TrafficGuard;
 
 /// Shared application state for all admin-api routes.
@@ -30,4 +31,6 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     pub jwt_config: JwtConfig,
     pub auth_store: Arc<AdminUserStore>,
+    pub config: Arc<RwLock<DraoxConfig>>,
+    pub config_path: String,
 }

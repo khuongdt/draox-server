@@ -30,6 +30,7 @@ jsonwebtoken.workspace = true
 uuid.workspace = true
 governor.workspace = true
 argon2.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

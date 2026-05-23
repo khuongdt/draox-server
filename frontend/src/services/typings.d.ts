@@ -140,7 +140,30 @@ declare namespace API {
 
   // ─── Config ───────────────────────────────────────────────────────────────
   interface ServerConfig {
-    [section: string]: Record<string, unknown>;
+    server?: Record<string, unknown>;
+    tcp?: Record<string, unknown>;
+    udp?: Record<string, unknown>;
+    websocket?: Record<string, unknown>;
+    http?: Record<string, unknown>;
+    grpc?: Record<string, unknown>;
+    tls?: Record<string, unknown>;
+    traffic_guard?: Record<string, unknown>;
+    sessions?: Record<string, unknown>;
+    storage?: Record<string, unknown>;
+    cache?: Record<string, unknown>;
+    billing?: Record<string, unknown>;
+    admin_api?: Record<string, unknown>;
+    logging?: Record<string, unknown>;
+    metrics?: Record<string, unknown>;
+    marketplace?: Record<string, unknown>;
+    plugins?: Record<string, unknown>;
+    [key: string]: Record<string, unknown> | undefined;
+  }
+
+  interface ConfigDiff {
+    path: string;
+    old: unknown;
+    new: unknown;
   }
 
   // ─── Billing ──────────────────────────────────────────────────────────────
