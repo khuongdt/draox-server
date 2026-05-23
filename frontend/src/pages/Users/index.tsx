@@ -1,4 +1,4 @@
-import { useModel, useRequest } from '@umijs/max';
+import { useModel } from '@umijs/max';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
   Button,
@@ -12,7 +12,7 @@ import {
   Spin,
   Tag,
 } from 'antd';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { listUsers, createUser, updateUser, deleteUser, banUser, unbanUser } from '@/services/users';
 
 const ROLE_COLOR: Record<API.AdminRole, string> = {
@@ -30,10 +30,20 @@ const ROLE_OPTIONS = [
 type ModalMode = 'create' | 'edit';
 
 export default function UsersPage() {
-  const { data: users = [], loading, refresh } = useRequest(listUsers, {
-    refreshOnWindowFocus: false,
-    onError: (e) => message.error(`Failed to load users: ${e.message}`),
-  });
+  const [users, setUsers] = useState<API.AdminUser[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = () => {
+    setLoading(true);
+    listUsers()
+      .then((data) => setUsers(data))
+      .catch((e: Error) => message.error(`Failed to load users: ${e.message}`))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { initialState } = useModel('@@initialState');
   const currentUsername = initialState?.currentUser?.username;
