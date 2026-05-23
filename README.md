@@ -11,7 +11,7 @@
 
 ## Overview
 
-Draox Server is a high-performance, modular server built as a Cargo workspace of 14+ specialized crates. It accepts connections over TCP, UDP, WebSocket, and HTTP/HTTPS from the same process, with all traffic passing through a configurable plugin pipeline.
+Draox Server is a high-performance, modular server built as a Cargo workspace of 30 specialized crates. It accepts connections over TCP, UDP, WebSocket, and HTTP/HTTPS from the same process, with all traffic passing through a configurable plugin pipeline.
 
 **Key design principles:**
 
@@ -41,6 +41,7 @@ Draox Server is a high-performance, modular server built as a Cargo workspace of
 │                             plugin-push              │
 │                             plugin-jobs              │
 │                             plugin-e2ee              │
+│                             plugin-cluster           │
 │                             [external WASM plugins]  │
 ├─────────────────────────────────────────────────────┤
 │  Layer 3 — Plugin Runtime   plugin-host              │
@@ -96,6 +97,9 @@ Draox Server is a high-performance, modular server built as a Cargo workspace of
 | `feature-flags` | Runtime feature flag evaluation |
 | `i18n` | Internationalization / localization |
 | `graphql-api` | GraphQL API gateway (async-graphql) |
+| `draox-server` | Main server binary (application entry point) |
+| `plugin-cluster` | Built-in: Cluster / multi-node coordination |
+| `grpc-api` | gRPC API gateway (tonic, Phase D) |
 | `tools/sdk-gen` | SDK code generator from OpenAPI spec |
 
 ---
@@ -173,8 +177,8 @@ Draox Server is a high-performance, modular server built as a Cargo workspace of
 
 ```bash
 # Clone the repository
-git clone https://github.com/draox/draox-server
-cd draox-server
+git clone https://github.com/khuongdt/draox-server.git
+cd draox-server/backend
 
 # Build all crates
 cargo build
@@ -189,7 +193,8 @@ cargo run -- --config config/default.toml
 ### Docker
 
 ```bash
-# Start with Docker Compose (multi-stage build)
+# From the backend/ directory
+cd draox-server/backend
 docker compose up -d
 ```
 
@@ -422,8 +427,3 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 ## License
 
 MIT — see [LICENSE](LICENSE)
-
-
---- Notes
-
-AI coding 
