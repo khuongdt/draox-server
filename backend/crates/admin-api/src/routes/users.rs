@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct UserSummary {
     pub username: String,
     pub role: AdminRole,
+    pub banned: bool,
 }
 
 #[derive(Deserialize)]
@@ -74,7 +75,7 @@ pub async fn list_users(State(state): State<AppState>) -> impl IntoResponse {
         .list()
         .await
         .into_iter()
-        .map(|u| UserSummary { username: u.username, role: u.role })
+        .map(|u| UserSummary { username: u.username, role: u.role, banned: u.banned })
         .collect();
 
     ApiResponse::ok(users)
@@ -100,6 +101,7 @@ pub async fn create_user(
         username: body.username.clone(),
         password_hash,
         role: body.role,
+        banned: false,
     };
     state.auth_store.set(&user).await.map_err(|_| internal())?;
 
@@ -153,4 +155,35 @@ pub async fn delete_user(
     state.auth_store.delete(&username).await.map_err(|_| internal())?;
 
     Ok(ApiResponse::<()>::message(format!("user '{}' deleted", username)))
+}
+
+/// POST /api/users/:username/ban
+pub async fn ban_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(username): Path<String>,
+) -> Result<impl IntoResponse, ErrResp> {
+    if let Some(caller) = caller_identity(&headers, &state.jwt_config.secret) {
+        if caller == username {
+            return Err(bad_request("cannot ban your own account"));
+        }
+    }
+
+    let mut user = state.auth_store.get(&username).await.ok_or_else(not_found)?;
+    user.banned = true;
+    state.auth_store.set(&user).await.map_err(|_| internal())?;
+
+    Ok(ApiResponse::<()>::message(format!("user '{}' banned", username)))
+}
+
+/// POST /api/users/:username/unban
+pub async fn unban_user(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<impl IntoResponse, ErrResp> {
+    let mut user = state.auth_store.get(&username).await.ok_or_else(not_found)?;
+    user.banned = false;
+    state.auth_store.set(&user).await.map_err(|_| internal())?;
+
+    Ok(ApiResponse::<()>::message(format!("user '{}' unbanned", username)))
 }

@@ -61,3 +61,9 @@ desktop.ini
 *.deb
 *.msi
 backend/tools/
+
+# ===========================
+# Local-only directories
+# ===========================
+docs/
+knowledge-base/

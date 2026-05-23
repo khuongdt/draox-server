@@ -1,4 +1,4 @@
-import { useRequest } from '@umijs/max';
+import { useModel, useRequest } from '@umijs/max';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
   Button,
@@ -13,7 +13,7 @@ import {
   Tag,
 } from 'antd';
 import { useState } from 'react';
-import { listUsers, createUser, updateUser, deleteUser } from '@/services/users';
+import { listUsers, createUser, updateUser, deleteUser, banUser, unbanUser } from '@/services/users';
 
 const ROLE_COLOR: Record<API.AdminRole, string> = {
   admin: '#ff4d4f',
@@ -33,6 +33,9 @@ export default function UsersPage() {
   const { data: users = [], loading, refresh } = useRequest(listUsers, {
     refreshOnWindowFocus: false,
   });
+
+  const { initialState } = useModel('@@initialState');
+  const currentUsername = initialState?.currentUser?.username;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('create');
@@ -85,6 +88,18 @@ export default function UsersPage() {
     refresh();
   };
 
+  const handleBan = async (username: string) => {
+    await banUser(username);
+    message.success(`User '${username}' has been banned`);
+    refresh();
+  };
+
+  const handleUnban = async (username: string) => {
+    await unbanUser(username);
+    message.success(`User '${username}' has been unbanned`);
+    refresh();
+  };
+
   const columns = [
     {
       title: 'Username',
@@ -103,6 +118,16 @@ export default function UsersPage() {
       ),
     },
     {
+      title: 'Status',
+      dataIndex: 'banned',
+      render: (banned: boolean) =>
+        banned ? (
+          <Tag color="red">BANNED</Tag>
+        ) : (
+          <Tag color="green">ACTIVE</Tag>
+        ),
+    },
+    {
       title: 'Actions',
       key: 'actions',
       render: (_: unknown, record: API.AdminUser) => (
@@ -110,6 +135,29 @@ export default function UsersPage() {
           <Button size="small" onClick={() => openEdit(record)}>
             Edit
           </Button>
+          {record.username !== currentUsername && (
+            record.banned ? (
+              <Popconfirm
+                title={`Unban user '${record.username}'?`}
+                onConfirm={() => handleUnban(record.username)}
+                okText="Unban"
+              >
+                <Button size="small">Unban</Button>
+              </Popconfirm>
+            ) : (
+              <Popconfirm
+                title={`Ban user '${record.username}'?`}
+                description="User will be prevented from logging in."
+                onConfirm={() => handleBan(record.username)}
+                okText="Ban"
+                okButtonProps={{ danger: true }}
+              >
+                <Button size="small" danger>
+                  Ban
+                </Button>
+              </Popconfirm>
+            )
+          )}
           <Popconfirm
             title={`Delete user '${record.username}'?`}
             description="This action cannot be undone."

@@ -37,6 +37,7 @@ declare namespace API {
   interface AdminUser {
     username: string;
     role: AdminRole;
+    banned: boolean;
   }
 
   interface CreateUserRequest {

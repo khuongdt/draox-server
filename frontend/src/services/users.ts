@@ -15,3 +15,11 @@ export async function updateUser(username: string, data: API.UpdateUserRequest):
 export async function deleteUser(username: string): Promise<void> {
   return request(`/api/users/${username}`, { method: 'DELETE' });
 }
+
+export async function banUser(username: string): Promise<void> {
+  return request(`/api/users/${username}/ban`, { method: 'POST' });
+}
+
+export async function unbanUser(username: string): Promise<void> {
+  return request(`/api/users/${username}/unban`, { method: 'POST' });
+}

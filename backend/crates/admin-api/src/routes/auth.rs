@@ -55,6 +55,13 @@ pub async fn login(
         .verify_password(body.password.as_bytes(), &parsed)
         .map_err(|_| unauthorized())?;
 
+    if user.banned {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "account is banned"})),
+        ));
+    }
+
     let token = create_jwt_token(&user.username, user.role, &state.jwt_config)
         .map_err(|_| internal_error())?;
 

@@ -11,6 +11,8 @@ pub struct AdminUser {
     pub username: String,
     pub password_hash: String,
     pub role: AdminRole,
+    #[serde(default)]
+    pub banned: bool,
 }
 
 pub struct AdminUserStore {

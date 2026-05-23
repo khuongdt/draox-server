@@ -77,7 +77,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
     ),
     // Watermark using the current user identity
     waterMarkProps: initialState?.currentUser
-      ? { content: initialState.currentUser.identity }
+      ? { content: initialState.currentUser.username }
       : undefined,
     // Redirect unauthenticated access to /login
     onPageChange: () => {

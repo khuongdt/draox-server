@@ -30,6 +30,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/users/{username}",
             put(users::update_user).delete(users::delete_user),
         )
+        .route("/api/users/{username}/ban", post(users::ban_user))
+        .route("/api/users/{username}/unban", post(users::unban_user))
         // Health & info
         .route("/api/health", get(app::health))
         .route("/api/health/detailed", get(app::health_detailed))

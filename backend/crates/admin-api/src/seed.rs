@@ -23,6 +23,7 @@ pub async fn seed_default_users(store: &AdminUserStore) {
                     username: username.to_string(),
                     password_hash: hash,
                     role: *role,
+                    banned: false,
                 };
                 if store.set(&user).await.is_ok() {
                     info!("seeded default user: {} ({:?})", username, role);
