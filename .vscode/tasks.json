@@ -546,6 +546,86 @@
     },
 
     // ─────────────────────────────────────────────
+    // SDK — TypeScript Demo
+    // ─────────────────────────────────────────────
+    {
+      "label": "sdk-ts-client-install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/sdk-ts/draox-client" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "sdk-ts-client-build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/sdk-ts/draox-client" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "sdk-ts-client-watch",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/sdk-ts/draox-client" },
+      "isBackground": true,
+      "problemMatcher": ["$tsc-watch"],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "sdk-ts-demo-install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/sdk-ts/draox-ts-demo" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "sdk-ts-demo-start",
+      "type": "shell",
+      "command": "npm start",
+      "options": {
+        "cwd": "${workspaceFolder}/backend/tools/sdk-ts/draox-ts-demo",
+        "env": {
+          "HOST": "localhost",
+          "PORT": "9002",
+          "ADMIN_PORT": "9100",
+          "DRAOX_USER": "admin",
+          "DRAOX_PASS": "draox@Admin#2024"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "sdk-ts-demo-start-channel",
+      "type": "shell",
+      "command": "npm start -- --channel ${input:channelName}",
+      "options": {
+        "cwd": "${workspaceFolder}/backend/tools/sdk-ts/draox-ts-demo",
+        "env": {
+          "HOST": "localhost",
+          "PORT": "9002",
+          "ADMIN_PORT": "9100",
+          "DRAOX_USER": "admin",
+          "DRAOX_PASS": "draox@Admin#2024"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "sdk-ts-demo-setup",
+      "detail": "Install dependencies for draox-client and draox-ts-demo",
+      "dependsOn": ["sdk-ts-client-install", "sdk-ts-demo-install"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
     // COMPOSITE — Full pipeline tasks
     // ─────────────────────────────────────────────
     {
@@ -582,6 +662,14 @@
       "problemMatcher": [],
       "group": "test",
       "presentation": { "reveal": "always", "panel": "shared" }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "channelName",
+      "type": "promptString",
+      "description": "Channel name to join",
+      "default": "general"
     }
   ]
 }
