@@ -1,0 +1,21 @@
+pub mod authority;
+pub mod failover;
+pub mod handoff;
+pub mod handler;
+pub mod heartbeat;
+pub mod heartbeat_manager;
+pub mod manager;
+pub mod session;
+pub mod session_auth;
+pub mod session_rate_limit;
+
+pub use authority::{AuthoritativeState, SessionAuthority};
+pub use failover::{FailoverManager, FailoverPolicy};
+pub use handoff::{HandoffManager, HandoffToken};
+pub use handler::SessionHandler;
+pub use heartbeat::session_cleanup_task;
+pub use heartbeat_manager::HeartbeatManager;
+pub use manager::{SessionManager, SessionMetrics, SessionMetricsSnapshot};
+pub use session::{ClientSession, SessionInfo};
+pub use session_auth::{AuthInfo, SessionAuthenticator};
+pub use session_rate_limit::SessionRateLimiter;

@@ -1,0 +1,240 @@
+[workspace]
+members = [
+    "crates/server-core",
+    "crates/server-config",
+    "crates/plugin-sdk",
+    "crates/socket-server",
+    "crates/traffic-guard",
+    "crates/connection-manager",
+    "crates/data-store",
+    "crates/cache-layer",
+    "crates/activity-log",
+    "crates/billing",
+    "crates/plugin-host",
+    "crates/admin-api",
+    "crates/plugin-clans",
+    "crates/plugin-messaging",
+    "crates/draox-server",
+    "crates/draox-macros",
+    # Phase A — Must-have
+    "crates/plugin-identity",
+    "crates/plugin-cluster",
+    "crates/plugin-presence",
+    # Phase B — Growth
+    "crates/plugin-storage",
+    "crates/plugin-push",
+    "crates/plugin-jobs",
+    "crates/secrets-manager",
+    # Phase C — Maturity
+    "crates/plugin-e2ee",
+    "crates/otel-layer",
+    # Phase D — Innovation
+    "crates/feature-flags",
+    "crates/i18n",
+    "crates/graphql-api",
+    "crates/grpc-api",
+    # Tools
+    "tools/sdk-gen",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Draox Team"]
+license = "MIT"
+repository = "https://github.com/draox/draox-server"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Proc-macro dependencies
+quote = "1"
+syn = { version = "2", features = ["full"] }
+proc-macro2 = "1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+bincode = "1"
+rmp-serde = "1"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Concurrency
+dashmap = "6"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Unique IDs
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Networking / Async utilities
+futures-util = "0.3"
+axum = { version = "0.8", features = ["ws", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = [
+    "cors",
+    "compression-gzip",
+    "compression-br",
+    "trace",
+    "fs",
+] }
+tokio-tungstenite = "0.26"
+socket2 = "0.5"
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2"
+tokio-rustls = "0.26"
+
+# Rate limiting / traffic guard
+governor = "0.8"
+ipnet = "2"
+sysinfo = "0.33"
+
+# Database
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "mysql",
+    "sqlite",
+    "chrono",
+    "uuid",
+] }
+mongodb = "3"
+
+# Cache
+fred = { version = "10", features = ["subscriber-client", "serde-json", "i-scripts"] }
+moka = { version = "0.12", features = ["future"] }
+
+# Config
+notify = "7"
+
+# Testing
+tempfile = "3"
+
+# Crypto
+ed25519-dalek = { version = "2", features = ["serde"] }
+jsonwebtoken = "9.3.1"
+
+# Metrics
+prometheus = "0.14.0"
+
+# API docs
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+
+# WASM
+wasmtime = "44.0.0"
+
+# Compression
+flate2 = "1"
+
+# Billing
+# stripe-rust = "0.38"  # Uncomment when implementing billing
+
+# Internal crates
+server-core = { path = "crates/server-core" }
+server-config = { path = "crates/server-config" }
+plugin-sdk = { path = "crates/plugin-sdk" }
+socket-server = { path = "crates/socket-server" }
+traffic-guard = { path = "crates/traffic-guard" }
+connection-manager = { path = "crates/connection-manager" }
+data-store = { path = "crates/data-store" }
+cache-layer = { path = "crates/cache-layer" }
+activity-log = { path = "crates/activity-log" }
+billing = { path = "crates/billing" }
+plugin-host = { path = "crates/plugin-host" }
+admin-api = { path = "crates/admin-api" }
+plugin-clans = { path = "crates/plugin-clans" }
+plugin-messaging = { path = "crates/plugin-messaging" }
+draox-server = { path = "crates/draox-server" }
+draox-macros = { path = "crates/draox-macros" }
+plugin-identity = { path = "crates/plugin-identity" }
+plugin-cluster = { path = "crates/plugin-cluster" }
+plugin-presence = { path = "crates/plugin-presence" }
+plugin-storage = { path = "crates/plugin-storage" }
+plugin-push = { path = "crates/plugin-push" }
+plugin-jobs = { path = "crates/plugin-jobs" }
+secrets-manager = { path = "crates/secrets-manager" }
+
+# Argon2 password hashing
+argon2 = "0.5"
+
+# AWS SDK
+aws-sdk-s3 = "1.131.0"
+aws-credential-types = "1"
+aws-config = "1"
+
+# TOTP / MFA
+totp-rs = { version = "5", features = ["gen_secret", "qr"] }
+
+# Cron expression parsing
+cron = "0.12"
+
+# Encryption
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+hex = "0.4"
+sha2 = "0.10"
+hmac = "0.12"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# MIME
+mime = "0.3"
+mime_guess = "2"
+
+# Base32
+base32 = "0.4"
+
+# OAuth2
+oauth2 = "4"
+
+# E2EE (Phase C)
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+
+# OpenTelemetry (Phase C)
+opentelemetry = { version = "0.27", features = ["trace", "metrics", "logs"] }
+opentelemetry_sdk = { version = "0.27", features = ["trace", "rt-tokio", "metrics"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic", "grpc-tonic", "trace", "metrics"] }
+opentelemetry-semantic-conventions = "0.27"
+tracing-opentelemetry = "0.28"
+tonic = { version = "0.12", features = ["transport"] }
+prost = "0.13"
+
+# GraphQL (Phase D)
+async-graphql = { version = "7", features = ["chrono", "uuid"] }
+async-graphql-axum = "7"
+
+# QUIC (Phase D)
+quinn = "0.11"
+bytes = "1"
+tokio-stream = "0.1"
+
+# SDK codegen (tools)
+openapiv3 = "2"
+indexmap = "2"
+clap = { version = "4", features = ["derive"] }
+heck = "0.5"
+
+# Internal crates (Phase C/D)
+plugin-e2ee = { path = "crates/plugin-e2ee" }
+otel-layer = { path = "crates/otel-layer" }
+feature-flags = { path = "crates/feature-flags" }
+i18n = { path = "crates/i18n" }
+graphql-api = { path = "crates/graphql-api" }
+grpc-api = { path = "crates/grpc-api" }

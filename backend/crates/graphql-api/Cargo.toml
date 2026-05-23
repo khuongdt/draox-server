@@ -1,0 +1,28 @@
+[package]
+name = "graphql-api"
+description = "GraphQL API layer over Draox Server services (async-graphql + axum)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+async-graphql.workspace = true
+async-graphql-axum.workspace = true
+async-trait.workspace = true
+tokio-stream.workspace = true
+futures-util.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

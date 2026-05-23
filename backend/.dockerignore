@@ -1,0 +1,39 @@
+# Build artifacts
+target/
+*.pdb
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Data / runtime
+data/
+logs/
+certs/
+plugins/
+
+# Docs
+docs/
+*.md
+!crates/**/README.md
+
+# Deploy scripts (not needed in image)
+deploy/
+
+# Env files
+.env
+*.env
+
+# Claude
+.claude/
+
+# OS
+Thumbs.db
+.DS_Store

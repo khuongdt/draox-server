@@ -1,0 +1,45 @@
+[package]
+name = "plugin-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core = { workspace = true }
+plugin-sdk = { workspace = true }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+dashmap = { workspace = true }
+
+# AWS S3 / R2 / MinIO (S3-compatible)
+aws-sdk-s3 = "1"
+aws-credential-types = "1"
+aws-config = "1"
+
+# HMAC for presigned URL signing
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
+# URL building
+url = "2"
+
+# MIME type detection
+mime = "0.3"
+mime_guess = "2"
+
+# HTTP client for storage operations
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+tempfile = { workspace = true }

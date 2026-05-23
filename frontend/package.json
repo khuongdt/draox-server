@@ -1,0 +1,32 @@
+{
+  "name": "draox-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Draox Server Admin Dashboard",
+  "scripts": {
+    "dev": "max dev",
+    "build": "max build",
+    "preview": "max preview",
+    "postinstall": "max setup",
+    "lint": "max lint",
+    "lint:fix": "max lint --fix",
+    "test": "max test"
+  },
+  "dependencies": {
+    "@ant-design/charts": "^2.1.0",
+    "@ant-design/icons": "^6.1.1",
+    "@ant-design/pro-components": "^2.7.0",
+    "@umijs/max": "^4.6.47",
+    "antd": "^6.3.6",
+    "dayjs": "^1.11.10",
+    "numeral": "^2.0.6",
+    "rc-field-form": "^2.7.1",
+    "reconnecting-websocket": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/numeral": "^2.0.5",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  }
+}

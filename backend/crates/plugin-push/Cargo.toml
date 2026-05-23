@@ -1,0 +1,30 @@
+[package]
+name = "plugin-push"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core = { workspace = true }
+plugin-sdk = { workspace = true }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+dashmap = { workspace = true }
+
+# JWT for APNs auth tokens
+jsonwebtoken = { workspace = true }
+
+# HTTP client for FCM/APNs API calls
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "http2"], default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

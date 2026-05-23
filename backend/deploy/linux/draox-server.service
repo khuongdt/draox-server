@@ -1,0 +1,55 @@
+[Unit]
+Description=Draox Server — Plugin-powered multi-protocol socket server
+Documentation=https://github.com/draox/draox-server
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=draox
+Group=draox
+WorkingDirectory=/opt/draox-server
+ExecStart=/opt/draox-server/bin/draox-server --config /etc/draox-server/config.toml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+# Environment
+EnvironmentFile=-/etc/draox-server/draox-server.env
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+
+# Writable directories
+ReadWritePaths=/var/lib/draox-server
+ReadWritePaths=/var/log/draox-server
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=draox-server
+
+[Install]
+WantedBy=multi-user.target

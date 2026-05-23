@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ':*)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Workspaces\\\\Rust\\\\rust-v2.1\\\\backend\\\\tools\\\\sdk-ts\\\\\" -Recurse -Force | Select-Object FullName | Sort-Object FullName)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Workspaces\\\\Rust\\\\rust-v2.1\\\\crates\\\\admin-api\\\\src\\\\\" -Recurse -File | Select-Object -ExpandProperty FullName | head -50)"
+    ]
+  }
+}

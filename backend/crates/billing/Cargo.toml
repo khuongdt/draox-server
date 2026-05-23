@@ -1,0 +1,17 @@
+[package]
+name = "billing"
+description = "Usage billing and subscription plan management"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+dashmap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true

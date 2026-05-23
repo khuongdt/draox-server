@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Remove data, logs, and user on purge
+        rm -rf /var/lib/draox-server
+        rm -rf /var/log/draox-server
+        rm -rf /opt/draox-server/plugins
+        rmdir /opt/draox-server 2>/dev/null || true
+
+        if getent passwd draox > /dev/null 2>&1; then
+            deluser --quiet --system draox || true
+        fi
+        if getent group draox > /dev/null 2>&1; then
+            delgroup --quiet --system draox || true
+        fi
+        ;;
+
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+esac
+
+#DEBHELPER#
+exit 0

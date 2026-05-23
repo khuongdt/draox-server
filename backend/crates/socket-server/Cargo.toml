@@ -1,0 +1,33 @@
+[package]
+name = "socket-server"
+description = "Multi-protocol networking: TCP, UDP, WebSocket, HTTP/HTTPS"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+tokio.workspace = true
+socket2.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio-rustls.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+dashmap.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+flate2.workspace = true
+
+quinn.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio-tungstenite.workspace = true

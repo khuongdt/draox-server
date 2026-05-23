@@ -1,0 +1,27 @@
+{
+    "recommendations": [
+        // Rust core
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "tamasfe.even-better-toml",
+
+        // Testing & debugging
+        "hbenl.vscode-test-explorer",
+        "swellaby.vscode-rust-test-adapter",
+
+        // Code quality
+        "usernamehw.errorlens",
+        "streetsidesoftware.code-spell-checker",
+
+        // Git
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+
+        // Editor enhancements
+        "aaron-bond.better-comments",
+        "fill-labs.dependi"
+    ],
+    "unwantedRecommendations": [
+        "ms-vscode.cpptools"
+    ]
+}

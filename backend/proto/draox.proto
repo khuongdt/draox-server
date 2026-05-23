@@ -1,0 +1,128 @@
+syntax = "proto3";
+package draox.v1;
+
+// ── Auth Service ──────────────────────────────────────────────────────────────
+service AuthService {
+  rpc Authenticate(AuthRequest) returns (AuthResponse);
+}
+
+// ── Generic Service (mirrors JSON wire protocol) ──────────────────────────────
+service DraoxService {
+  rpc Send(DraoxRequest)           returns (DraoxResponse);
+  rpc Subscribe(SubscribeRequest)  returns (stream DraoxEvent);
+}
+
+// ── Messaging Service (typed convenience API) ─────────────────────────────────
+service MessagingService {
+  rpc SendMessage(SendMessageRequest)        returns (SendMessageResponse);
+  rpc GetHistory(HistoryRequest)             returns (HistoryResponse);
+  rpc DeleteMessage(DeleteMessageRequest)    returns (MutationResponse);
+  rpc EditMessage(EditMessageRequest)        returns (MutationResponse);
+  rpc AddReaction(AddReactionRequest)        returns (MutationResponse);
+  rpc SubscribeChannel(SubscribeChannelRequest) returns (stream MessageEvent);
+}
+
+// ── Auth Messages ─────────────────────────────────────────────────────────────
+message AuthRequest {
+  string user_id = 1;
+  string token   = 2;
+}
+
+message AuthResponse {
+  bool   success    = 1;
+  string session_id = 2;
+  string error      = 3;
+}
+
+// ── Generic Messages ──────────────────────────────────────────────────────────
+message DraoxRequest {
+  string id      = 1;
+  string action  = 2;
+  bytes  payload = 3;
+}
+
+message DraoxResponse {
+  string id      = 1;
+  bool   success = 2;
+  bytes  data    = 3;
+  string error   = 4;
+}
+
+message SubscribeRequest {
+  string          session_id = 1;
+  repeated string categories = 2;
+}
+
+message DraoxEvent {
+  string category  = 1;
+  string name      = 2;
+  bytes  data      = 3;
+  string timestamp = 4;
+}
+
+// ── Messaging Messages ────────────────────────────────────────────────────────
+message SendMessageRequest {
+  string session_id        = 1;
+  string channel           = 2;
+  string text              = 3;
+  optional string reply_to = 4;
+}
+
+message SendMessageResponse {
+  bool   success    = 1;
+  string message_id = 2;
+  string error      = 3;
+}
+
+message HistoryRequest {
+  string           session_id = 1;
+  string           channel    = 2;
+  int32            limit      = 3;
+  optional string  before_id  = 4;
+}
+
+message HistoryResponse {
+  repeated Message messages = 1;
+  string           error    = 2;
+}
+
+message Message {
+  string id        = 1;
+  string channel   = 2;
+  string sender_id = 3;
+  string text      = 4;
+  string timestamp = 5;
+}
+
+message DeleteMessageRequest {
+  string session_id = 1;
+  string message_id = 2;
+}
+
+message EditMessageRequest {
+  string session_id = 1;
+  string message_id = 2;
+  string new_text   = 3;
+}
+
+message AddReactionRequest {
+  string session_id = 1;
+  string message_id = 2;
+  string emoji      = 3;
+}
+
+message MutationResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message SubscribeChannelRequest {
+  string session_id = 1;
+  string channel    = 2;
+}
+
+message MessageEvent {
+  string  event_type = 1;  // "received" | "deleted" | "edited" | "reaction"
+  Message message    = 2;
+  string  timestamp  = 3;
+}

@@ -1,0 +1,587 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ─────────────────────────────────────────────
+    // BUILD — Rust
+    // ─────────────────────────────────────────────
+    {
+      "label": "cargo-build-server",
+      "type": "cargo",
+      "command": "build",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--bin=draox-server", "--package=draox-server"],
+      "problemMatcher": ["$rustc"],
+      "group": "build",
+      "presentation": { "reveal": "silent", "panel": "shared", "clear": false }
+    },
+    {
+      "label": "cargo-build-workspace",
+      "type": "cargo",
+      "command": "build",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--workspace"],
+      "problemMatcher": ["$rustc"],
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "cargo-build-release",
+      "type": "cargo",
+      "command": "build",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--workspace", "--release"],
+      "problemMatcher": ["$rustc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "cargo-check-workspace",
+      "type": "cargo",
+      "command": "check",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--workspace"],
+      "problemMatcher": ["$rustc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
+    // BUILD — Frontend (UmiJS / Webpack)
+    // ─────────────────────────────────────────────
+    {
+      "label": "frontend-build",
+      "type": "shell",
+      "command": "npm run build --legacy-peer-deps",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "frontend-dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "umi-dev",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting",
+          "endsPattern": "http://localhost:8000"
+        }
+      }
+    },
+    {
+      "label": "frontend-lint",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "frontend-lint-fix",
+      "type": "shell",
+      "command": "npm run lint:fix",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "frontend-install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
+    // BUILD — Packages (deb / msi)
+    // ─────────────────────────────────────────────
+    {
+      "label": "cargo-build-deb",
+      "type": "shell",
+      "command": "cargo deb -p draox-server",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": ["$rustc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "cargo-build-msi",
+      "type": "shell",
+      "command": "cargo wix",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": ["$rustc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
+    // TEST — Workspace & per-crate
+    // ─────────────────────────────────────────────
+    {
+      "label": "cargo-test-all",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--workspace"],
+      "problemMatcher": ["$rustc"],
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // Core crates
+    {
+      "label": "cargo-test-server-core",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=server-core"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-server-config",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=server-config"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-sdk",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-sdk"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-draox-macros",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=draox-macros"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+
+    // Networking
+    {
+      "label": "cargo-test-socket-server",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=socket-server"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-traffic-guard",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=traffic-guard"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+
+    // Services
+    {
+      "label": "cargo-test-connection-manager",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=connection-manager"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-data-store",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=data-store"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-cache-layer",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=cache-layer"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-activity-log",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=activity-log"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-billing",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=billing"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-host",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-host"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-admin-api",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=admin-api"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+
+    // Built-in plugins
+    {
+      "label": "cargo-test-plugin-clans",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-clans"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-messaging",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-messaging"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+
+    // New extension crates
+    {
+      "label": "cargo-test-plugin-identity",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-identity"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-cluster",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-cluster"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-presence",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-presence"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-storage",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-storage"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-push",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-push"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-plugin-jobs",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=plugin-jobs"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "cargo-test-secrets-manager",
+      "type": "cargo",
+      "command": "test",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--package=secrets-manager"],
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+
+    // ─────────────────────────────────────────────
+    // LINT / FORMAT
+    // ─────────────────────────────────────────────
+    {
+      "label": "cargo-clippy",
+      "type": "cargo",
+      "command": "clippy",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--workspace", "--", "-W", "clippy::all"],
+      "problemMatcher": ["$rustc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "cargo-fmt",
+      "type": "cargo",
+      "command": "fmt",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--all"],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "cargo-fmt-check",
+      "type": "cargo",
+      "command": "fmt",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--all", "--check"],
+      "problemMatcher": [],
+      "group": "build"
+    },
+
+    // ─────────────────────────────────────────────
+    // RUN
+    // ─────────────────────────────────────────────
+    {
+      "label": "cargo-run-server",
+      "type": "cargo",
+      "command": "run",
+      "args": ["--bin=draox-server", "--", "--config", "config/default.toml"],
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "env": {
+          "RUST_LOG": "info,draox_server=debug",
+          "DRAOX_ADMIN_JWT_SECRET": "dev-secret-change-in-production"
+        }
+      },
+      "problemMatcher": ["$rustc"],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "cargo-run-release",
+      "type": "shell",
+      "command": "cargo run --release --bin=draox-server -- --config config/default.toml",
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "env": {
+          "RUST_LOG": "info",
+          "DRAOX_ADMIN_JWT_SECRET": "dev-secret-change-in-production"
+        }
+      },
+      "problemMatcher": ["$rustc"],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+
+    // ─────────────────────────────────────────────
+    // DEPLOY — Docker
+    // ─────────────────────────────────────────────
+    {
+      "label": "deploy-docker-up",
+      "type": "shell",
+      "command": "docker compose up -d --build",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "deploy-docker-down",
+      "type": "shell",
+      "command": "docker compose down",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "deploy-docker-logs",
+      "type": "shell",
+      "command": "docker compose logs -f draox-server",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "deploy-docker-logs-admin",
+      "type": "shell",
+      "command": "docker compose logs -f draox-admin",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "deploy-docker-restart",
+      "type": "shell",
+      "command": "docker compose restart draox-server",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "deploy-docker-restart-admin",
+      "type": "shell",
+      "command": "docker compose restart draox-admin",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "deploy-docker-build-frontend",
+      "type": "shell",
+      "command": "docker compose build draox-admin",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+
+    // ─────────────────────────────────────────────
+    // DEPLOY — Linux (via WSL)
+    // ─────────────────────────────────────────────
+    {
+      "label": "deploy-linux-install",
+      "type": "shell",
+      "command": "wsl bash deploy/linux/install.sh",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "deploy-linux-uninstall",
+      "type": "shell",
+      "command": "wsl bash deploy/linux/uninstall.sh",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "deploy-linux-uninstall-purge",
+      "type": "shell",
+      "command": "wsl bash deploy/linux/uninstall.sh --purge",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
+    // DEPLOY — Windows Service
+    // ─────────────────────────────────────────────
+    {
+      "label": "deploy-windows-install",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/install-service.ps1",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "deploy-windows-uninstall",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/uninstall-service.ps1",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "deploy-windows-firewall",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/manage-firewall.ps1",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
+    // MISC
+    // ─────────────────────────────────────────────
+    {
+      "label": "cargo-doc",
+      "type": "cargo",
+      "command": "doc",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": ["--workspace", "--no-deps", "--open"],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "cargo-clean",
+      "type": "cargo",
+      "command": "clean",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "args": [],
+      "problemMatcher": [],
+      "group": "build"
+    },
+
+    // ─────────────────────────────────────────────
+    // COMPOSITE — Full pipeline tasks
+    // ─────────────────────────────────────────────
+    {
+      "label": "build-all",
+      "detail": "Build Rust workspace (release) then Frontend",
+      "dependsOn": ["cargo-build-release", "frontend-build"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "deploy-docker-full",
+      "detail": "Build Rust + Frontend then deploy all services via Docker Compose",
+      "dependsOn": ["cargo-build-release", "deploy-docker-up"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "ci-check",
+      "detail": "Format check → Clippy → All tests",
+      "dependsOn": ["cargo-fmt-check", "cargo-clippy", "cargo-test-all"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "ci-full",
+      "detail": "CI check + Frontend lint + Frontend build",
+      "dependsOn": ["ci-check", "frontend-lint", "frontend-build"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    }
+  ]
+}

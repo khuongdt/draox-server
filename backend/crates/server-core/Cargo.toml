@@ -1,0 +1,21 @@
+[package]
+name = "server-core"
+description = "Core types, traits, and errors for Draox Server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

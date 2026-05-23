@@ -1,0 +1,19 @@
+[package]
+name = "connection-manager"
+description = "Server-authoritative multi-connection session management"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+socket-server.workspace = true
+dashmap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true

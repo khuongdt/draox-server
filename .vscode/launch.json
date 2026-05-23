@@ -1,0 +1,315 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        // ───────── Frontend ─────────
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Debug Frontend (Chrome)",
+            "url": "http://localhost:8000",
+            "webRoot": "${workspaceFolder}/frontend",
+            "sourceMapPathOverrides": {
+                "webpack://?:*/*": "${workspaceFolder}/frontend/*",
+                "webpack:///./~/*": "${workspaceFolder}/frontend/node_modules/*",
+                "webpack:///*": "*"
+            },
+            "preLaunchTask": "frontend-dev"
+        },
+        {
+            "type": "chrome",
+            "request": "attach",
+            "name": "Attach Frontend (Chrome)",
+            "url": "http://localhost:8000",
+            "webRoot": "${workspaceFolder}/frontend",
+            "sourceMapPathOverrides": {
+                "webpack://?:*/*": "${workspaceFolder}/frontend/*",
+                "webpack:///./~/*": "${workspaceFolder}/frontend/node_modules/*",
+                "webpack:///*": "*"
+            },
+            "port": 9222
+        },
+
+        // ───────── Run / Debug Server ─────────
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Draox Server",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--manifest-path", "${workspaceFolder}/backend/Cargo.toml",
+                    "--bin=draox-server",
+                    "--package=draox-server"
+                ],
+                "filter": {
+                    "name": "draox-server",
+                    "kind": "bin"
+                }
+            },
+            "args": ["--config", "config/default.toml"],
+            "env": {
+                "RUST_LOG": "debug,draox_server=trace",
+                "RUST_BACKTRACE": "1",
+                "DRAOX_ADMIN_JWT_SECRET": "dev-secret-change-in-production"
+            },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Run Draox Server (Release)",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--manifest-path", "${workspaceFolder}/backend/Cargo.toml",
+                    "--bin=draox-server",
+                    "--package=draox-server",
+                    "--release"
+                ],
+                "filter": {
+                    "name": "draox-server",
+                    "kind": "bin"
+                }
+            },
+            "args": ["--config", "config/default.toml"],
+            "env": {
+                "RUST_LOG": "info",
+                "DRAOX_ADMIN_JWT_SECRET": "dev-secret-change-in-production"
+            },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+
+        // ───────── Test Configurations ─────────
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug All Tests",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--manifest-path", "${workspaceFolder}/backend/Cargo.toml",
+                    "--workspace",
+                    "--no-run"
+                ],
+                "filter": {
+                    "kind": "test"
+                }
+            },
+            "env": {
+                "RUST_LOG": "debug",
+                "RUST_BACKTRACE": "1"
+            },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — server-core",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=server-core", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — server-config",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=server-config", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — socket-server",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=socket-server", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — traffic-guard",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=traffic-guard", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — connection-manager",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=connection-manager", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — data-store",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=data-store", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — cache-layer",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=cache-layer", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — activity-log",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=activity-log", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — billing",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=billing", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — plugin-host",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=plugin-host", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — admin-api",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=admin-api", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — plugin-clans",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=plugin-clans", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — plugin-messaging",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=plugin-messaging", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — plugin-sdk",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=plugin-sdk", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests — draox-macros",
+            "cargo": {
+                "args": ["test", "--manifest-path", "${workspaceFolder}/backend/Cargo.toml", "--package=draox-macros", "--no-run"],
+                "filter": { "kind": "lib" }
+            },
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        },
+
+        // ───────── Debug Current Test ─────────
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Current Test (cursor)",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--manifest-path", "${workspaceFolder}/backend/Cargo.toml",
+                    "--package=${command:currentPackage}",
+                    "--no-run"
+                ],
+                "filter": { "kind": "lib" }
+            },
+            "args": ["${selectedText}"],
+            "env": { "RUST_LOG": "debug", "RUST_BACKTRACE": "1" },
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Debug Full Stack (Server + Frontend)",
+            "configurations": ["Debug Draox Server", "Debug Frontend (Chrome)"],
+            "stopAll": true
+        }
+    ]
+}

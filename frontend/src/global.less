@@ -1,0 +1,107 @@
+// Dark theme overrides for Ant Design 5 internals
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #1a1a2e;
+}
+
+// Table
+.ant-table { background: #16213e !important; }
+.ant-table-thead > tr > th {
+  background: #0f3460 !important;
+  color: #ff8c42 !important;
+  border-bottom: 2px solid #e05d10 !important;
+}
+.ant-table-row:hover > td { background: rgba(255, 140, 66, 0.05) !important; }
+.ant-table-cell { border-bottom-color: #2a2a4a !important; }
+
+// Modal
+.ant-modal-content { background: #16213e !important; border: 1px solid #2a2a4a; }
+.ant-modal-header { background: #16213e !important; border-bottom: 1px solid #2a2a4a; }
+
+// Dropdown / Select
+.ant-select-dropdown, .ant-dropdown-menu { background: #16213e !important; border: 1px solid #2a2a4a; }
+
+// Tooltip
+.ant-tooltip-inner { background: #0f3460 !important; }
+
+// Card
+.ant-card { background: #16213e; border-color: #2a2a4a; }
+
+// Tabs
+.ant-tabs-tab { color: #a0a0b0 !important; }
+.ant-tabs-tab-active .ant-tabs-tab-btn { color: #ff8c42 !important; }
+.ant-tabs-ink-bar { background: #e05d10 !important; }
+
+// Protocol colored tags — used across connections, sessions and metrics views
+.protocol-tcp  { background: #1a237e; color: #90caf9; border: none; }
+.protocol-udp  { background: #1b5e20; color: #a5d6a7; border: none; }
+.protocol-ws   { background: #4a1010; color: #ef9a9a; border: none; }
+.protocol-http { background: #3e2723; color: #ff8a65; border: none; }
+
+// Severity tags — used in traffic-guard and audit log views
+.severity-critical { background: #d32f2f; color: #fff; border: none; }
+.severity-high     { background: #e05d10; color: #fff; border: none; }
+.severity-medium   { background: #f5a623; color: #1a1a2e; border: none; }
+.severity-low      { background: #53c28b; color: #1a1a2e; border: none; }
+
+// Custom scrollbar styling to match the dark theme
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #1a1a2e; }
+::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
+
+// ProTable dark overrides
+.ant-pro-table-list-toolbar { background: #16213e !important; }
+.ant-pro-card { background: #16213e !important; border-color: #2a2a4a !important; }
+.ant-pro-card:hover { border-color: #e05d10 !important; }
+
+// Empty state override
+.ant-empty-description { color: #a0a0b0 !important; }
+
+// Collapse dark
+.ant-collapse { background: transparent !important; }
+.ant-collapse-item { border-color: #2a2a4a !important; }
+.ant-collapse-header { color: #e0e0e0 !important; background: #16213e !important; }
+.ant-collapse-content { background: #16213e !important; border-color: #2a2a4a !important; }
+
+// Pagination dark
+.ant-pagination-item a { color: #a0a0b0; }
+.ant-pagination-item-active a { color: #e05d10; }
+.ant-pagination-item-active { border-color: #e05d10 !important; }
+.ant-pagination-prev button, .ant-pagination-next button { color: #a0a0b0; }
+
+// Input dark
+.ant-input, .ant-input-number-input { background: #0f3460 !important; border-color: #2a2a4a !important; color: #e0e0e0 !important; }
+.ant-input:focus, .ant-input-number-input:focus { border-color: #e05d10 !important; box-shadow: 0 0 0 2px rgba(224,93,16,0.2) !important; }
+.ant-input-affix-wrapper { background: #0f3460 !important; border-color: #2a2a4a !important; }
+
+// DatePicker dark
+.ant-picker { background: #0f3460 !important; border-color: #2a2a4a !important; color: #e0e0e0 !important; }
+.ant-picker-panel-container { background: #16213e !important; }
+
+// Form label dark
+.ant-form-item-label > label { color: #a0a0b0 !important; }
+
+// Mobile responsive breakpoints
+@media (max-width: 768px) {
+  .ant-pro-table-list-toolbar { flex-wrap: wrap; gap: 8px; }
+  .ant-page-header-heading { flex-wrap: wrap; }
+  .ant-space-wrap { flex-wrap: wrap !important; }
+}
+
+// Pulse animation for WS connecting state
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+// Skeleton dark override
+.ant-skeleton-content .ant-skeleton-paragraph > li,
+.ant-skeleton-content .ant-skeleton-title,
+.ant-skeleton-avatar {
+  background: linear-gradient(90deg, #0f3460 25%, #16213e 37%, #0f3460 63%) !important;
+  background-size: 400% 100% !important;
+  animation: ant-skeleton-loading 1.4s ease infinite !important;
+}

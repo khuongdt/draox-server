@@ -1,0 +1,30 @@
+[package]
+name = "plugin-jobs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core = { workspace = true }
+plugin-sdk = { workspace = true }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+dashmap = { workspace = true }
+
+# Redis Streams for durable job queue
+fred = { workspace = true }
+
+# Cron expression parsing for job scheduling
+cron = "0.12"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

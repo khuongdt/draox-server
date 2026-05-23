@@ -1,0 +1,24 @@
+[package]
+name = "plugin-clans"
+description = "Built-in plugin: Clans/Groups management with hierarchy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+plugin-sdk.workspace = true
+dashmap.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+plugin-host.workspace = true
+cache-layer.workspace = true
+server-config.workspace = true

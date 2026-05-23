@@ -1,0 +1,51 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create system user if not exists
+        if ! getent passwd draox > /dev/null 2>&1; then
+            adduser --system --group --no-create-home --home /opt/draox-server --shell /usr/sbin/nologin draox
+        fi
+
+        # Create runtime directories
+        mkdir -p /var/lib/draox-server
+        mkdir -p /var/log/draox-server
+        mkdir -p /opt/draox-server/plugins
+
+        # Set ownership
+        chown -R draox:draox /var/lib/draox-server
+        chown -R draox:draox /var/log/draox-server
+        chown -R draox:draox /opt/draox-server/plugins
+        chown root:draox /etc/draox-server/config.toml
+        chmod 640 /etc/draox-server/config.toml
+        chmod 600 /etc/draox-server/draox-server.env
+
+        # Adjust config paths for Linux FHS
+        if grep -q 'sqlite://data/draox.db' /etc/draox-server/config.toml; then
+            sed -i \
+                -e 's|"plugins"|"/opt/draox-server/plugins"|' \
+                -e 's|sqlite://data/draox.db|sqlite:///var/lib/draox-server/draox.db|' \
+                -e 's|"certs/|"/etc/draox-server/certs/|' \
+                /etc/draox-server/config.toml
+        fi
+
+        # Reload systemd
+        systemctl daemon-reload
+
+        echo ""
+        echo "========================================"
+        echo "  Draox Server installed successfully!"
+        echo "========================================"
+        echo ""
+        echo "  IMPORTANT: Set your JWT secret:"
+        echo "    sudo editor /etc/draox-server/draox-server.env"
+        echo ""
+        echo "  Start the server:"
+        echo "    sudo systemctl start draox-server"
+        echo ""
+        ;;
+esac
+
+#DEBHELPER#
+exit 0

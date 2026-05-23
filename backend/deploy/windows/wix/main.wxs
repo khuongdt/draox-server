@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Draox Server — WiX Installer Definition
+    Build: cargo wix (or candle.exe + light.exe manually)
+
+    This file defines the MSI installer for Draox Server on Windows.
+    It installs the binary, configuration, and optionally registers
+    a Windows Service and opens firewall ports.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+    <?define ProductName = "Draox Server" ?>
+    <?define Manufacturer = "Draox Team" ?>
+    <?define Version = "0.1.0" ?>
+    <?define UpgradeCode = "A7B3C1D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D" ?>
+    <?define ProductCode = "*" ?>
+    <?define ProgramFilesDir = "DraoxServer" ?>
+    <?define ProgramDataDir = "DraoxServer" ?>
+
+    <Product Id="$(var.ProductCode)"
+             Name="$(var.ProductName)"
+             Language="1033"
+             Version="$(var.Version)"
+             Manufacturer="$(var.Manufacturer)"
+             UpgradeCode="$(var.UpgradeCode)">
+
+        <Package InstallerVersion="500"
+                 Compressed="yes"
+                 InstallScope="perMachine"
+                 Description="$(var.ProductName) $(var.Version) Installer"
+                 Comments="Plugin-powered multi-protocol socket server"
+                 Manufacturer="$(var.Manufacturer)" />
+
+        <!-- ── Upgrade: automatically remove old versions ── -->
+        <MajorUpgrade DowngradeErrorMessage="A newer version of $(var.ProductName) is already installed."
+                      AllowSameVersionUpgrades="yes" />
+
+        <!-- ── Compress all files into the MSI ── -->
+        <MediaTemplate EmbedCab="yes" />
+
+        <!-- ── Icon for Add/Remove Programs ── -->
+        <Icon Id="DraoxIcon" SourceFile="$(var.CargoTargetBinDir)\draox-server.exe" />
+        <Property Id="ARPPRODUCTICON" Value="DraoxIcon" />
+        <Property Id="ARPHELPLINK" Value="https://github.com/draox/draox-server" />
+        <Property Id="ARPURLINFOABOUT" Value="https://github.com/draox/draox-server" />
+
+        <!-- ── Installation directory (user-selectable) ── -->
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+        <!-- ══════════════════════════════════════════════════
+             Directory Layout
+             ══════════════════════════════════════════════════ -->
+        <Directory Id="TARGETDIR" Name="SourceDir">
+
+            <!-- C:\Program Files\DraoxServer\ -->
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="$(var.ProgramFilesDir)">
+                    <Directory Id="BinDir" Name="bin" />
+                    <Directory Id="ConfigInstallDir" Name="config" />
+                    <Directory Id="ScriptsDir" Name="scripts" />
+                </Directory>
+            </Directory>
+
+            <!-- C:\ProgramData\DraoxServer\ -->
+            <Directory Id="CommonAppDataFolder">
+                <Directory Id="ProgramDataRoot" Name="$(var.ProgramDataDir)">
+                    <Directory Id="DataDir" Name="data" />
+                    <Directory Id="LogDir" Name="logs" />
+                    <Directory Id="PluginDir" Name="plugins" />
+                    <Directory Id="CertsDir" Name="certs" />
+                    <Directory Id="ProgramDataConfigDir" Name="config" />
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <!-- ══════════════════════════════════════════════════
+             Components
+             ══════════════════════════════════════════════════ -->
+
+        <!-- Core Binary -->
+        <ComponentGroup Id="BinaryComponents" Directory="BinDir">
+            <Component Id="DraoxServerExe" Guid="B1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E" Win64="yes">
+                <File Id="DraoxServerExeFile"
+                      Name="draox-server.exe"
+                      Source="$(var.CargoTargetBinDir)\draox-server.exe"
+                      KeyPath="yes" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- Default Configuration (install dir copy) -->
+        <ComponentGroup Id="ConfigComponents" Directory="ConfigInstallDir">
+            <Component Id="DefaultConfigFile" Guid="C2D3E4F5-A6B7-4C8D-9E0F-1A2B3C4D5E6F" Win64="yes">
+                <File Id="DefaultConfigToml"
+                      Name="default.toml"
+                      Source="deploy\windows\config\default.toml"
+                      KeyPath="yes" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- ProgramData Config (working copy) -->
+        <ComponentGroup Id="ProgramDataConfigComponents" Directory="ProgramDataConfigDir">
+            <Component Id="WorkingConfigFile" Guid="D3E4F5A6-B7C8-4D9E-0F1A-2B3C4D5E6F7A" Win64="yes"
+                       NeverOverwrite="yes" Permanent="yes">
+                <File Id="WorkingConfigToml"
+                      Name="default.toml"
+                      Source="deploy\windows\config\default.toml"
+                      KeyPath="yes" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- PowerShell Scripts -->
+        <ComponentGroup Id="ScriptComponents" Directory="ScriptsDir">
+            <Component Id="InstallServiceScript" Guid="E4F5A6B7-C8D9-4E0F-1A2B-3C4D5E6F7A8B" Win64="yes">
+                <File Id="InstallServicePs1"
+                      Name="install-service.ps1"
+                      Source="deploy\windows\scripts\install-service.ps1"
+                      KeyPath="yes" />
+            </Component>
+            <Component Id="UninstallServiceScript" Guid="F5A6B7C8-D9E0-4F1A-2B3C-4D5E6F7A8B9C" Win64="yes">
+                <File Id="UninstallServicePs1"
+                      Name="uninstall-service.ps1"
+                      Source="deploy\windows\scripts\uninstall-service.ps1"
+                      KeyPath="yes" />
+            </Component>
+            <Component Id="ManageFirewallScript" Guid="A6B7C8D9-E0F1-4A2B-3C4D-5E6F7A8B9C0D" Win64="yes">
+                <File Id="ManageFirewallPs1"
+                      Name="manage-firewall.ps1"
+                      Source="deploy\windows\scripts\manage-firewall.ps1"
+                      KeyPath="yes" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- ProgramData directories (empty placeholders) -->
+        <ComponentGroup Id="DataDirComponents">
+            <Component Id="CreateDataDir" Directory="DataDir" Guid="17A8B9C0-D1E2-4F3A-4B5C-6D7E8F9A0B1C" Win64="yes">
+                <CreateFolder />
+            </Component>
+            <Component Id="CreateLogDir" Directory="LogDir" Guid="28B9C0D1-E2F3-4A4B-5C6D-7E8F9A0B1C2D" Win64="yes">
+                <CreateFolder />
+            </Component>
+            <Component Id="CreatePluginDir" Directory="PluginDir" Guid="39C0D1E2-F3A4-4B5C-6D7E-8F9A0B1C2D3E" Win64="yes">
+                <CreateFolder />
+            </Component>
+            <Component Id="CreateCertsDir" Directory="CertsDir" Guid="4AD1E2F3-A4B5-4C6D-7E8F-9A0B1C2D3E4F" Win64="yes">
+                <CreateFolder />
+            </Component>
+        </ComponentGroup>
+
+        <!-- ══════════════════════════════════════════════════
+             Windows Service (optional feature)
+             ══════════════════════════════════════════════════ -->
+        <ComponentGroup Id="ServiceComponents" Directory="BinDir">
+            <Component Id="DraoxWindowsService" Guid="5BE2F3A4-B5C6-4D7E-8F9A-0B1C2D3E4F5A" Win64="yes">
+                <ServiceInstall Id="DraoxServiceInstall"
+                                Type="ownProcess"
+                                Name="DraoxServer"
+                                DisplayName="Draox Server"
+                                Description="Draox Server - Plugin-powered multi-protocol socket server (TCP, UDP, WebSocket, HTTP)"
+                                Start="auto"
+                                Account="NT AUTHORITY\LocalService"
+                                ErrorControl="normal"
+                                Arguments="--config &quot;[CommonAppDataFolder]DraoxServer\config\default.toml&quot;">
+                    <util:ServiceConfig FirstFailureActionType="restart"
+                                        SecondFailureActionType="restart"
+                                        ThirdFailureActionType="restart"
+                                        RestartServiceDelayInSeconds="5"
+                                        ResetPeriodInDays="1" />
+                </ServiceInstall>
+
+                <ServiceControl Id="DraoxServiceControl"
+                                Name="DraoxServer"
+                                Start="install"
+                                Stop="both"
+                                Remove="uninstall"
+                                Wait="yes" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- ══════════════════════════════════════════════════
+             Firewall Rules (optional feature)
+             ══════════════════════════════════════════════════ -->
+        <ComponentGroup Id="FirewallComponents" Directory="BinDir">
+            <Component Id="FirewallTCP" Guid="6CF3A4B5-C6D7-4E8F-9A0B-1C2D3E4F5A6B" Win64="yes">
+                <fire:FirewallException Id="FwTcp9000"
+                                         Name="Draox Server - TCP (9000)"
+                                         Protocol="tcp"
+                                         Port="9000"
+                                         Scope="any"
+                                         Description="Draox Server TCP protocol" />
+            </Component>
+            <Component Id="FirewallUDP" Guid="7DA4B5C6-D7E8-4F9A-0B1C-2D3E4F5A6B7C" Win64="yes">
+                <fire:FirewallException Id="FwUdp9001"
+                                         Name="Draox Server - UDP (9001)"
+                                         Protocol="udp"
+                                         Port="9001"
+                                         Scope="any"
+                                         Description="Draox Server UDP protocol" />
+            </Component>
+            <Component Id="FirewallWS" Guid="8EB5C6D7-E8F9-4A0B-1C2D-3E4F5A6B7C8D" Win64="yes">
+                <fire:FirewallException Id="FwTcp9002"
+                                         Name="Draox Server - WebSocket (9002)"
+                                         Protocol="tcp"
+                                         Port="9002"
+                                         Scope="any"
+                                         Description="Draox Server WebSocket protocol" />
+            </Component>
+            <Component Id="FirewallHTTP" Guid="9FC6D7E8-F9A0-4B1C-2D3E-4F5A6B7C8D9E" Win64="yes">
+                <fire:FirewallException Id="FwTcp9003"
+                                         Name="Draox Server - HTTP (9003)"
+                                         Protocol="tcp"
+                                         Port="9003"
+                                         Scope="any"
+                                         Description="Draox Server HTTP/HTTPS protocol" />
+            </Component>
+            <Component Id="FirewallMetrics" Guid="A0D7E8F9-A0B1-4C2D-3E4F-5A6B7C8D9E0F" Win64="yes">
+                <fire:FirewallException Id="FwTcp9090"
+                                         Name="Draox Server - Metrics (9090)"
+                                         Protocol="tcp"
+                                         Port="9090"
+                                         Scope="any"
+                                         Description="Draox Server Prometheus metrics" />
+            </Component>
+            <Component Id="FirewallAdmin" Guid="B1E8F9A0-B1C2-4D3E-4F5A-6B7C8D9E0F1A" Win64="yes">
+                <fire:FirewallException Id="FwTcp9100"
+                                         Name="Draox Server - Admin API (9100)"
+                                         Protocol="tcp"
+                                         Port="9100"
+                                         Scope="localSubnet"
+                                         Description="Draox Server Admin REST API (local subnet)" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- ══════════════════════════════════════════════════
+             Features (user-selectable in installer UI)
+             ══════════════════════════════════════════════════ -->
+        <Feature Id="FeatureCore"
+                 Title="Draox Server Core"
+                 Description="Server binary, default configuration, and management scripts."
+                 Level="1"
+                 Absent="disallow"
+                 AllowAdvertise="no"
+                 Display="expand">
+            <ComponentGroupRef Id="BinaryComponents" />
+            <ComponentGroupRef Id="ConfigComponents" />
+            <ComponentGroupRef Id="ProgramDataConfigComponents" />
+            <ComponentGroupRef Id="ScriptComponents" />
+            <ComponentGroupRef Id="DataDirComponents" />
+        </Feature>
+
+        <Feature Id="FeatureService"
+                 Title="Windows Service"
+                 Description="Register Draox Server as a Windows Service with automatic startup and failure recovery."
+                 Level="1"
+                 AllowAdvertise="no">
+            <ComponentGroupRef Id="ServiceComponents" />
+        </Feature>
+
+        <Feature Id="FeatureFirewall"
+                 Title="Firewall Rules"
+                 Description="Open Windows Firewall ports for TCP (9000), UDP (9001), WebSocket (9002), HTTP (9003), Metrics (9090), and Admin API (9100, local subnet)."
+                 Level="1"
+                 AllowAdvertise="no">
+            <ComponentGroupRef Id="FirewallComponents" />
+        </Feature>
+
+        <!-- ══════════════════════════════════════════════════
+             UI (WixUI_FeatureTree — feature selection dialog)
+             ══════════════════════════════════════════════════ -->
+        <UIRef Id="WixUI_FeatureTree" />
+        <UIRef Id="WixUI_ErrorProgressText" />
+
+        <!-- License -->
+        <WixVariable Id="WixUILicenseRtf" Value="deploy\windows\wix\license.rtf" />
+
+    </Product>
+</Wix>

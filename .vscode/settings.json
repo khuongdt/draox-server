@@ -1,0 +1,133 @@
+{
+    // ───────── Rust Analyzer ─────────
+    "rust-analyzer.cargo.features": "all",
+    "rust-analyzer.check.command": "clippy",
+    "rust-analyzer.check.extraArgs": [
+        "--workspace",
+        "--",
+        "-W", "clippy::all"
+    ],
+    "rust-analyzer.cargo.buildScripts.enable": true,
+    "rust-analyzer.procMacro.enable": true,
+    "rust-analyzer.procMacro.attributes.enable": true,
+    "rust-analyzer.diagnostics.experimental.enable": true,
+    "rust-analyzer.inlayHints.chainingHints.enable": true,
+    "rust-analyzer.inlayHints.typeHints.enable": true,
+    "rust-analyzer.inlayHints.parameterHints.enable": true,
+    "rust-analyzer.inlayHints.closureReturnTypeHints.enable": "always",
+    "rust-analyzer.lens.enable": true,
+    "rust-analyzer.lens.run.enable": true,
+    "rust-analyzer.lens.debug.enable": true,
+    "rust-analyzer.lens.implementations.enable": true,
+    "rust-analyzer.lens.references.adt.enable": true,
+    "rust-analyzer.lens.references.trait.enable": true,
+    "rust-analyzer.lens.references.enumVariant.enable": true,
+    "rust-analyzer.hover.actions.run.enable": true,
+    "rust-analyzer.hover.actions.debug.enable": true,
+    "rust-analyzer.completion.autoimport.enable": true,
+    "rust-analyzer.imports.granularity.group": "module",
+
+    // Linked projects — workspace root Cargo.toml
+    "rust-analyzer.linkedProjects": [
+        "Cargo.toml"
+    ],
+
+    // ───────── Editor ─────────
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    "[toml]": {
+        "editor.defaultFormatter": "tamasfe.even-better-toml",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 4
+    },
+    "[json]": {
+        "editor.tabSize": 2
+    },
+    "[yaml]": {
+        "editor.tabSize": 2
+    },
+
+    // ───────── Files ─────────
+    "files.watcherExclude": {
+        "**/target/**": true,
+        "**/data/**": true,
+        "**/logs/**": true
+    },
+    "files.exclude": {
+        "**/target": true,
+        "**/*.pdb": true
+    },
+    "files.associations": {
+        "*.toml": "toml",
+        "*.dxp": "zip"
+    },
+
+    // ───────── Search ─────────
+    "search.exclude": {
+        "**/target": true,
+        "**/data": true,
+        "**/logs": true,
+        "**/*.lock": true
+    },
+
+    // ───────── Terminal ─────────
+    "terminal.integrated.env.windows": {
+        "RUST_LOG": "debug,draox_server=trace",
+        "RUST_BACKTRACE": "1",
+        "DRAOX_ADMIN_JWT_SECRET": "dev-secret-change-in-production"
+    },
+    "terminal.integrated.env.linux": {
+        "RUST_LOG": "debug,draox_server=trace",
+        "RUST_BACKTRACE": "1",
+        "DRAOX_ADMIN_JWT_SECRET": "dev-secret-change-in-production"
+    },
+    "terminal.integrated.cwd": "${workspaceFolder}",
+
+    // ───────── Testing ─────────
+    "rust-analyzer.runnables.extraArgs": [
+        "--workspace"
+    ],
+
+    // ───────── TOML (for Cargo.toml editing) ─────────
+    "evenBetterToml.formatter.alignEntries": false,
+    "evenBetterToml.formatter.columnWidth": 100,
+    "evenBetterToml.schema.enabled": true,
+
+    // ───────── Misc ─────────
+    "editor.rulers": [100],
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": "active",
+
+    // ───────── Spell Checker (cSpell) ─────────
+    "cSpell.words": [
+        // Project name
+        "draox", "Draox", "DRAOX",
+        // Docker / Docker Compose keywords
+        "healthcheck", "ulimits", "nofile", "cpus", "sysctls",
+        // PostgreSQL
+        "PGDATA", "pgdata", "isready", "postgres", "postgresql",
+        // Redis commands
+        "appendonly", "maxmemory", "allkeys", "allkeys-lru",
+        // Rust / Cargo ecosystem
+        "rustc", "rustfmt", "clippy", "reqwest", "tokio", "axum",
+        "serde", "sqlx", "wasmtime", "thiserror", "anyhow",
+        "moka", "fred", "tracing", "jsonwebtoken",
+        // Project-specific identifiers
+        "draox-server", "plugin-sdk", "plugin-host", "plugin-clans",
+        "plugin-messaging", "plugin-identity", "plugin-cluster",
+        "plugin-presence", "plugin-storage", "plugin-push", "plugin-jobs",
+        "secrets-manager", "traffic-guard", "admin-api", "cache-layer",
+        "data-store", "activity-log", "socket-server", "server-core",
+        "server-config", "connection-manager",
+        // Misc technical terms
+        "WASM", "wasm", "wasmtime", "WebSocket", "websocket",
+        "backlog", "nodelay", "keepalive", "slowloris", "mtls",
+        "logrotate", "systemd", "nofile", "ulimit"
+    ]
+}

@@ -1,0 +1,19 @@
+[package]
+name = "data-store"
+description = "SQL + NoSQL database storage abstraction"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+mongodb.workspace = true
+futures-util.workspace = true

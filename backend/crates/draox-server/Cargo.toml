@@ -1,0 +1,66 @@
+[package]
+name = "draox-server"
+description = "Draox Server — plugin-powered multi-protocol socket server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "draox-server"
+path = "src/main.rs"
+
+[package.metadata.deb]
+maintainer = "Draox Team <team@draox-server.io>"
+copyright = "2026, Draox Team"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Plugin-powered multi-protocol socket server supporting TCP, UDP, \
+WebSocket, and HTTP/HTTPS with a VS Code-inspired plugin architecture. \
+Features traffic guard (DDoS protection, rate limiting, IP reputation), \
+server-authoritative sessions, admin REST API, and plugin marketplace."""
+section = "net"
+priority = "optional"
+depends = "$auto, adduser"
+assets = [
+    ["target/release/draox-server", "opt/draox-server/bin/", "755"],
+    ["../../config/default.toml", "etc/draox-server/config.toml", "640"],
+    ["../../deploy/linux/draox-server.env", "etc/draox-server/draox-server.env", "600"],
+    ["../../deploy/linux/draox-server.service", "lib/systemd/system/draox-server.service", "644"],
+    ["../../deploy/linux/logrotate.conf", "etc/logrotate.d/draox-server", "644"],
+]
+conf-files = [
+    "/etc/draox-server/config.toml",
+    "/etc/draox-server/draox-server.env",
+]
+maintainer-scripts = "../../deploy/linux/deb-scripts/"
+systemd-units = { unit-name = "draox-server", enable = true, start = false }
+
+[package.metadata.wix]
+upgrade-guid = "A7B3C1D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D"
+path-guid = "B8C4D2E5-F6A7-5B8C-9DAE-1F2A3B4C5D6E"
+license = false
+eula = false
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+plugin-sdk.workspace = true
+socket-server.workspace = true
+traffic-guard.workspace = true
+connection-manager.workspace = true
+data-store.workspace = true
+cache-layer.workspace = true
+activity-log.workspace = true
+billing.workspace = true
+plugin-host.workspace = true
+admin-api.workspace = true
+plugin-clans.workspace = true
+plugin-messaging.workspace = true
+grpc-api.workspace = true
+tokio = { workspace = true, features = ["full", "signal"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+anyhow.workspace = true

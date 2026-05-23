@@ -1,0 +1,208 @@
+# ================================================
+# Draox Server — Docker Compose Configuration
+# Overrides default.toml for containerized deployment.
+# PostgreSQL and Redis are resolved via Docker service names.
+# ================================================
+
+[server]
+name = "Draox Server"
+host = "0.0.0.0"
+max_connections = 10000
+shutdown_timeout_secs = 30
+plugin_dir = "/opt/draox-server/plugins"
+
+# ==== TCP Server ====
+[tcp]
+enabled = true
+port = 9000
+backlog = 1024
+nodelay = true
+keepalive_secs = 60
+recv_buffer_size = 65536
+send_buffer_size = 65536
+idle_timeout_secs = 300
+
+# ==== UDP Server ====
+[udp]
+enabled = true
+port = 9001
+recv_buffer_size = 65536
+send_buffer_size = 65536
+max_packet_size = 65507
+session_timeout_secs = 60
+multicast_enabled = false
+broadcast_enabled = false
+
+# ==== WebSocket Server ====
+[websocket]
+enabled = true
+port = 9002
+path = "/ws"
+max_frame_size = 65536
+max_message_size = 1048576
+ping_interval_secs = 30
+pong_timeout_secs = 10
+compression = false
+
+# ==== HTTP Server ====
+[http]
+enabled = true
+port = 9003
+request_body_limit = 10485760
+request_timeout_secs = 30
+keepalive = true
+sse_enabled = true
+
+[http.cors]
+enabled = true
+allowed_origins = ["*"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+allowed_headers = ["Content-Type", "Authorization"]
+max_age_secs = 86400
+
+# ==== TLS ====
+[tls]
+enabled = false
+cert_path = "/etc/draox-server/certs/server.crt"
+key_path = "/etc/draox-server/certs/server.key"
+mtls = false
+
+# ==== Traffic Guard ====
+[traffic_guard]
+enabled = true
+
+[traffic_guard.connection_limits]
+max_connections_per_ip = 50
+max_new_connections_per_sec_per_ip = 10
+max_new_connections_per_sec_global = 1000
+max_half_open_connections = 500
+connection_timeout_secs = 10
+
+[traffic_guard.rate_limiting]
+algorithm = "token_bucket"
+default_requests_per_sec = 100
+burst_size = 50
+http_rate_per_sec = 200
+ws_messages_per_sec = 60
+udp_packets_per_sec = 500
+
+[traffic_guard.banning]
+enabled = true
+max_violations_before_ban = 5
+initial_ban_duration_secs = 300
+ban_escalation_multiplier = 6
+max_ban_duration_secs = 86400
+auth_failure_threshold = 10
+auth_failure_window_secs = 300
+
+[traffic_guard.ip_reputation]
+enabled = true
+initial_score = 100
+min_score_to_connect = 20
+violation_penalty = 10
+recovery_rate_per_hour = 5
+score_persistence = "cache"            # Use Redis when available
+
+[traffic_guard.blacklist]
+ips = []
+cidrs = []
+
+[traffic_guard.whitelist]
+ips = ["127.0.0.1", "::1"]
+cidrs = []
+
+[traffic_guard.slowloris]
+enabled = true
+min_data_rate_bytes_sec = 100
+header_timeout_secs = 30
+body_timeout_secs = 60
+
+[traffic_guard.adaptive]
+enabled = true
+cpu_threshold_percent = 80
+memory_threshold_percent = 85
+throttle_factor = 0.5
+recovery_cooldown_secs = 30
+
+# ==== Sessions ====
+[sessions]
+max_connections_per_session = 5
+session_timeout_secs = 3600
+grace_period_secs = 30
+heartbeat_interval_secs = 30
+heartbeat_timeout_secs = 10
+
+# ==== Storage — PostgreSQL ====
+[storage]
+backend = "postgres"
+
+[storage.sql]
+# Connection URL is composed from DRAOX_PG_* env vars at startup.
+# Resolved value: postgres://draox:<DRAOX_PG_PASSWORD>@postgres:5432/draox
+url = "postgres://draox:draox_dev@postgres:5432/draox"
+max_connections = 20
+min_connections = 2
+idle_timeout_secs = 300
+max_lifetime_secs = 3600
+run_migrations = true
+
+[storage.mongodb]
+enabled = false
+url = "mongodb://localhost:27017"
+database = "draox"
+max_pool_size = 10
+
+# ==== Cache — Redis ====
+[cache.redis]
+enabled = true
+url = "redis://redis:6379"
+pool_size = 10
+default_ttl_secs = 3600
+
+[cache.memory]
+max_capacity = 10000
+ttl_secs = 300
+
+# ==== Billing ====
+[billing]
+enabled = false
+provider = "stripe"
+free_tier_requests_per_day = 10000
+free_tier_connections = 100
+
+# ==== Admin API ====
+[admin_api]
+enabled = true
+host = "0.0.0.0"
+port = 9100
+auth_method = "jwt"
+jwt_secret = ""                        # Set via DRAOX_ADMIN_JWT_SECRET env var
+api_keys = []
+swagger_enabled = true
+
+[admin_api.cors]
+enabled = true
+allowed_origins = ["*"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+allowed_headers = ["Content-Type", "Authorization"]
+max_age_secs = 86400
+
+# ==== Logging ====
+[logging]
+level = "info"
+format = "json"                        # JSON for log aggregation (ELK, Loki, etc.)
+rotation = "daily"
+
+# ==== Metrics ====
+[metrics]
+enabled = true
+endpoint = "/metrics"
+port = 9090
+
+# ==== Marketplace ====
+[marketplace]
+enabled = false
+registry_url = "https://marketplace.draox-server.io/api/v1"
+auto_update_check = true
+update_check_interval_secs = 86400
+verify_signatures = true

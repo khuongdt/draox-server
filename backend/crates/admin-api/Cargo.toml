@@ -1,0 +1,35 @@
+[package]
+name = "admin-api"
+description = "REST API + WebSocket admin dashboard + plugin management"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+plugin-sdk.workspace = true
+plugin-host.workspace = true
+socket-server.workspace = true
+traffic-guard.workspace = true
+connection-manager.workspace = true
+activity-log.workspace = true
+billing.workspace = true
+cache-layer.workspace = true
+data-store.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "signal"] }
+tracing.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+jsonwebtoken.workspace = true
+uuid.workspace = true
+governor.workspace = true
+argon2.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -1,0 +1,63 @@
+# ===========================
+# Rust
+# ===========================
+backend/target/
+**/*.rs.bk
+*.pdb
+
+# ===========================
+# Node / Frontend
+# ===========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env.local
+frontend/.env.production
+
+# ===========================
+# Databases / Runtime data
+# ===========================
+*.db
+*.db-shm
+*.db-wal
+data/
+knowledge-base/*.db
+knowledge-base/*.db-shm
+knowledge-base/*.db-wal
+
+# ===========================
+# Environment & Secrets
+# ===========================
+.env
+.env.local
+.env.production
+!backend/deploy/linux/draox-server.env
+
+# ===========================
+# IDE
+# ===========================
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Logs
+# ===========================
+*.log
+frontend/logs/
+backend/logs/
+
+# ===========================
+# OS
+# ===========================
+desktop.ini
+
+# ===========================
+# Packages / Binaries
+# ===========================
+*.dxp
+*.deb
+*.msi
+backend/tools/

@@ -1,0 +1,57 @@
+services:
+  # ��������������������������������������������������������������������������������������������������
+  # Frontend ? Draox Admin Dashboard
+  # ��������������������������������������������������������������������������������������������������
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: draox-admin-frontend
+    ports:
+      - "8089:8089"
+    environment:
+      # Node environment for build stage
+      NODE_ENV: production
+    volumes:
+      # Nginx logs
+      - ./logs/nginx:/var/log/nginx
+      # Optional: development mode with hot reload
+      # Uncomment to enable development mode
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./public:/app/public
+    networks:
+      - draox-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8089/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # depends_on:
+    #   - backend
+
+  # ��������������������������������������������������������������������������������������������������
+  # Backend ? Draox Server API
+  # ��������������������������������������������������������������������������������������������������
+  # Note: Uncomment and configure if running backend locally
+  # backend:
+  #   image: draox-server:latest
+  #   container_name: draox-server-backend
+  #   ports:
+  #     - "9100:9100"
+  #   environment:
+  #     RUST_LOG: info
+  #     # Add other environment variables as needed
+  #   networks:
+  #     - draox-network
+  #   restart: unless-stopped
+
+# ��������������������������������������������������������������������������������������������������
+# Networks
+# ��������������������������������������������������������������������������������������������������
+networks:
+  draox-network:
+    external: true
+    name: backend_draox-net

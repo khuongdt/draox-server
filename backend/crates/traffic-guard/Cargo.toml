@@ -1,0 +1,20 @@
+[package]
+name = "traffic-guard"
+description = "Anti-spam, DDoS protection, rate limiting, IP reputation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+server-core.workspace = true
+server-config.workspace = true
+socket-server.workspace = true
+governor = { workspace = true }
+ipnet.workspace = true
+dashmap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+serde.workspace = true
+sysinfo.workspace = true
