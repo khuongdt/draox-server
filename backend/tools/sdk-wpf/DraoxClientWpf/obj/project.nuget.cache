@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "wEkKsDMxVrM=",
+  "success": true,
+  "projectFilePath": "D:\\Workspaces\\Rust\\rust-v2.1\\backend\\tools\\sdk-wpf\\DraoxClientWpf\\DraoxClientWpf.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Nie\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.25\\microsoft.netcore.app.ref.8.0.25.nupkg.sha512",
+    "C:\\Users\\Nie\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.25\\microsoft.windowsdesktop.app.ref.8.0.25.nupkg.sha512",
+    "C:\\Users\\Nie\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.25\\microsoft.aspnetcore.app.ref.8.0.25.nupkg.sha512"
+  ],
+  "logs": []
+}

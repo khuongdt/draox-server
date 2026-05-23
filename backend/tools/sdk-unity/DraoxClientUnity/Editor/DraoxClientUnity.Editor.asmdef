@@ -1,0 +1,16 @@
+{
+  "name": "DraoxClientUnity.Editor",
+  "rootNamespace": "Draox.Client.Editor",
+  "references": [
+    "DraoxClientUnity"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

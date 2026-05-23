@@ -1,0 +1,17 @@
+{
+    "name": "DraoxDemo",
+    "rootNamespace": "Draox.Demo",
+    "references": [
+        "GUID:DraoxClientUnity",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

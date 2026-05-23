@@ -1,0 +1,19 @@
+{
+  "name": "DraoxClientUnity",
+  "rootNamespace": "Draox.Client",
+  "references": [
+    "UniTask",
+    "Newtonsoft.Json"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "NativeWebSocket.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

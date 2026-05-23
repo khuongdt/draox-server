@@ -1,0 +1,18 @@
+{
+  "name": "DraoxClientUnity.Tests",
+  "rootNamespace": "Draox.Client.Tests",
+  "references": [
+    "DraoxClientUnity",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

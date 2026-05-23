@@ -1,0 +1,12 @@
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\bin\Debug\net8.0\DraoxClientWpf.deps.json
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\bin\Debug\net8.0\DraoxClientWpf.dll
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\bin\Debug\net8.0\DraoxClientWpf.pdb
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.GeneratedMSBuildEditorConfig.editorconfig
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.AssemblyInfoInputs.cache
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.AssemblyInfo.cs
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.csproj.CoreCompileInputs.cache
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.sourcelink.json
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.dll
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\refint\DraoxClientWpf.dll
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\DraoxClientWpf.pdb
+D:\Workspaces\Rust\rust-v2.1\backend\tools\sdk-wpf\DraoxClientWpf\obj\Debug\net8.0\ref\DraoxClientWpf.dll

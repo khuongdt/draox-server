@@ -1,0 +1,19 @@
+{
+  "name": "io.draox.client-unity",
+  "version": "0.1.0",
+  "displayName": "Draox Client SDK",
+  "description": "Unity client SDK for Draox Server — supports WebSocket, TCP, and gRPC transports with real-time event streaming.",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "documentationUrl": "https://docs.draox-server.io/sdk/unity",
+  "dependencies": {
+    "com.cysharp.unitask": "2.5.0",
+    "com.endel.nativewebsocket": "1.1.6"
+  },
+  "keywords": ["networking", "websocket", "grpc", "realtime", "multiplayer"],
+  "author": {
+    "name": "Draox Team",
+    "email": "sdk@draox-server.io",
+    "url": "https://draox-server.io"
+  }
+}

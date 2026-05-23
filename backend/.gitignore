@@ -4,6 +4,9 @@ Cargo.lock
 *.pdb
 .env
 data/
-certs/
 logs/
 plugins/
+
+# Tools — exclude generated build artifacts and dependencies
+tools/**/node_modules/
+tools/**/dist/

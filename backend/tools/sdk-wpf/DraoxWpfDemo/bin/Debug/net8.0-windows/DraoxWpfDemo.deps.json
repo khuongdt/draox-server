@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "DraoxWpfDemo/1.0.0": {
+        "dependencies": {
+          "DraoxClientWpf": "1.0.0"
+        },
+        "runtime": {
+          "DraoxWpfDemo.dll": {}
+        }
+      },
+      "DraoxClientWpf/1.0.0": {
+        "runtime": {
+          "DraoxClientWpf.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "DraoxWpfDemo/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "DraoxClientWpf/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

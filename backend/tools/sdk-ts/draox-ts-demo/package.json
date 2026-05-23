@@ -1,0 +1,20 @@
+{
+  "name": "draox-ts-demo",
+  "version": "1.0.0",
+  "description": "Draox Messaging CLI demo (TypeScript + Node.js)",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "start:channel": "ts-node src/index.ts --channel"
+  },
+  "dependencies": {
+    "draox-client": "file:../draox-client"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -60,7 +60,6 @@ desktop.ini
 *.dxp
 *.deb
 *.msi
-backend/tools/
 
 # ===========================
 # Local-only directories
