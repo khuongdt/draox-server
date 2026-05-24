@@ -1,6 +1,7 @@
 use crate::auth::{create_jwt_token, validate_jwt_token, AdminRole};
 use crate::response::ApiResponse;
 use crate::state::AppState;
+use activity_log::AuditAction;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -37,6 +38,7 @@ pub async fn login(
     if is_dev_env() && body.username == "admin" && body.password == "draox" {
         let token = create_jwt_token("admin", AdminRole::Admin, &state.jwt_config)
             .map_err(|_| internal_error())?;
+        state.audit_log.record("admin", AuditAction::LoginSuccess, "auth", None, None, None);
         return Ok(Json(ApiResponse::ok(LoginResponse {
             token,
             username: "admin".to_string(),
@@ -44,16 +46,36 @@ pub async fn login(
         })));
     }
 
-    let user = state
-        .auth_store
-        .get(&body.username)
-        .await
-        .ok_or_else(unauthorized)?;
+    let user = match state.auth_store.get(&body.username).await {
+        Some(u) => u,
+        None => {
+            state.audit_log.record(
+                &*body.username,
+                AuditAction::LoginFailed,
+                "auth",
+                Some(serde_json::json!({"reason": "user not found"})),
+                None,
+                None,
+            );
+            return Err(unauthorized());
+        }
+    };
 
     let parsed = PasswordHash::new(&user.password_hash).map_err(|_| internal_error())?;
-    Argon2::default()
+    if Argon2::default()
         .verify_password(body.password.as_bytes(), &parsed)
-        .map_err(|_| unauthorized())?;
+        .is_err()
+    {
+        state.audit_log.record(
+            &*user.username,
+            AuditAction::LoginFailed,
+            "auth",
+            Some(serde_json::json!({"reason": "invalid password"})),
+            None,
+            None,
+        );
+        return Err(unauthorized());
+    }
 
     if user.banned {
         return Err((
@@ -64,6 +86,7 @@ pub async fn login(
 
     let token = create_jwt_token(&user.username, user.role, &state.jwt_config)
         .map_err(|_| internal_error())?;
+    state.audit_log.record(&*user.username, AuditAction::LoginSuccess, "auth", None, None, None);
 
     Ok(Json(ApiResponse::ok(LoginResponse {
         token,

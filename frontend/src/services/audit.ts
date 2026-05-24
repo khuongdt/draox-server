@@ -9,7 +9,11 @@ interface AuditQueryParams {
 
 /** Fetch paginated audit log entries with optional filters. */
 export async function getAuditLogs(params?: AuditQueryParams): Promise<API.AuditEntry[]> {
-  return request('/api/audit', { method: 'GET', params });
+  const res = await request<any>('/api/audit', { method: 'GET', params });
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.entries)) return res.entries;
+  if (Array.isArray(res?.data?.entries)) return res.data.entries;
+  return [];
 }
 
 /** Fetch a single audit log entry by ID. */
