@@ -1,9 +1,7 @@
-import { useRequest } from '@umijs/max';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Tag, DatePicker, Button, Alert } from 'antd';
-import { useState } from 'react';
+import { Tag, DatePicker, message } from 'antd';
+import { useState, useEffect } from 'react';
 import { getAuditLogs } from '@/services/audit';
-import type { SortOrder } from 'antd/lib/table/interface';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
   critical: { color: '#ef5350', bg: '#4a1010' },
@@ -18,18 +16,20 @@ export default function AuditPage() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  const { data: logs = [], loading, error, refresh } = useRequest(
-    () =>
-      getAuditLogs({
-        page,
-        size: pageSize,
-        severity: severityFilter,
-      }),
-    {
-      refreshDeps: [page, severityFilter],
-      refreshOnWindowFocus: false,
-    },
-  );
+  const [logs, setLogs] = useState<API.AuditEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = () => {
+    setLoading(true);
+    getAuditLogs({ page, size: pageSize, severity: severityFilter })
+      .then((data) => setLogs(data))
+      .catch((e: Error) => message.error(`Failed to load audit logs: ${e.message}`))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [page, severityFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const columns = [
     {
@@ -44,7 +44,8 @@ export default function AuditPage() {
       title: 'Timestamp',
       dataIndex: 'timestamp',
       width: 170,
-      sorter: true,
+      sorter: (a: API.AuditEntry, b: API.AuditEntry) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
       render: (v: string) => (
         <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(v).toLocaleString()}</span>
       ),
@@ -109,16 +110,6 @@ export default function AuditPage() {
         />
       }
     >
-      {error && (
-        <Alert
-          type="error"
-          message="Failed to load audit logs"
-          description={String(error)}
-          closable
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
       <ProTable<API.AuditEntry>
         columns={columns}
         dataSource={logs}
