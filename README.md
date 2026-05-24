@@ -342,46 +342,6 @@ deactivate() → plugin unloaded, cleanup
 
 ---
 
-## Development Roadmap
-
-### Phase 1 — Production Foundation
-- [ ] Prometheus metrics wired into `activity-log` and `socket-server`
-- [ ] Dependency-aware health check in `admin-api`
-- [ ] mTLS `ClientCertVerifier` in `socket-server`
-- [ ] RBAC for Admin API JWT claims
-- [ ] Append-only audit log
-- [ ] Database migration CLI (`draoxctl db migrate`)
-- [ ] OpenTelemetry distributed tracing via `otel-layer`
-- [ ] Bounded async channels in `connection-manager`
-
-### Phase 2 — Resilience & Scale
-- [ ] Circuit breaker for `data-store` and `cache-layer`
-- [ ] Redis-backed distributed session registry
-- [ ] Distributed rate limiting (Redis sliding window)
-- [ ] Per-session application-level rate limiting
-- [ ] Message delivery guarantees (sequence numbers + ACK)
-- [ ] Plugin dependency resolution with topological sort
-- [ ] Data retention policy engine
-
-### Phase 3 — Ecosystem Growth
-- [ ] TypeScript client SDK (WebSocket + Admin REST)
-- [ ] GDPR tooling (data export API, erasure)
-- [ ] Plugin versioning and rollback
-- [ ] Plugin resource quotas (wasmtime fuel + memory)
-- [ ] Binary protocol (MessagePack negotiation)
-- [ ] SSE implementation (`/events?topics=...`)
-- [ ] Config environment profiles
-- [ ] `draoxctl` CLI management tool
-
-### Phase 4 — Advanced Capabilities
-- [ ] gRPC gateway (`crates/grpc-gateway`, port 9005)
-- [ ] Plugin hot-reload without client disconnect
-- [ ] QUIC / HTTP/3 transport (`quinn`, port 9004)
-- [ ] HashiCorp Vault / AWS Secrets Manager integration
-- [ ] MQTT gateway for IoT use cases
-
----
-
 ## Key Dependencies
 
 | Crate | Purpose |
