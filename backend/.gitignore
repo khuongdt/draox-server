@@ -6,6 +6,7 @@ Cargo.lock
 data/
 logs/
 plugins/
+!tools/**/src/plugins/
 
 # Tools — exclude generated build artifacts and dependencies
 tools/**/node_modules/
