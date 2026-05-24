@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { useRequest } from '@umijs/max';
+import { useEffect, useState, useCallback } from 'react';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Tag, Dropdown, Button, message, Spin, Row, Col } from 'antd';
 import { MoreOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -21,9 +20,20 @@ const TYPE_STYLE: Record<string, { color: string; bg: string }> = {
 };
 
 export default function PluginsPage() {
-  const { data: plugins = [], loading, refresh } = useRequest(listPlugins, {
-    refreshOnWindowFocus: false,
-  });
+  const [plugins, setPlugins] = useState<API.Plugin[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    listPlugins()
+      .then((data) => setPlugins(data))
+      .catch((e: Error) => message.error(`Failed to load plugins: ${e.message}`))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   // ── /ws/plugins — update badge states without full reload ─────────────────────
   useEffect(() => {

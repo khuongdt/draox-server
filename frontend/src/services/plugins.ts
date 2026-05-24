@@ -2,7 +2,10 @@ import { request } from '@umijs/max';
 
 /** List all installed plugins (builtin + WASM). */
 export async function listPlugins(): Promise<API.Plugin[]> {
-  return request('/api/plugins', { method: 'GET' });
+  const res = await request<any>('/api/plugins', { method: 'GET' });
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data)) return res.data;
+  return [];
 }
 
 /** Get metadata for a single plugin by ID. */
