@@ -8,8 +8,8 @@ export class WsTransport {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  connect(host: string, port: number, useTls = false): Promise<void> {
-    const url = `${useTls ? 'wss' : 'ws'}://${host}:${port}`;
+  connect(host: string, port: number, useTls = false, path = '/ws'): Promise<void> {
+    const url = `${useTls ? 'wss' : 'ws'}://${host}:${port}${path}`;
 
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url);

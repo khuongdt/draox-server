@@ -7,21 +7,19 @@ interface Props {
 }
 
 interface FormValues {
-  host:        string;
-  port:        string;
-  adminPort:   string;
-  username:    string;
-  password:    string;
-  channel:     string;
+  host:      string;
+  port:      string;
+  username:  string;
+  password:  string;
+  channel:   string;
 }
 
 const DEFAULTS: FormValues = {
-  host:      'localhost',
-  port:      '9002',
-  adminPort: '9100',
-  username:  'admin',
-  password:  'draox@Admin#2024',
-  channel:   'general',
+  host:     'localhost',
+  port:     '9002',
+  username: 'admin',
+  password: 'draox@Admin#2024',
+  channel:  'general',
 };
 
 export default function LoginPanel({ onConnected }: Props) {
@@ -39,9 +37,9 @@ export default function LoginPanel({ onConnected }: Props) {
 
     try {
       const client = new DraoxClient({
-        host:      form.host,
-        port:      Number(form.port),
-        adminPort: Number(form.adminPort),
+        host: form.host,
+        port: Number(form.port),
+        // apiUrl defaults to '' (relative) — Vite proxy forwards /api to admin port
       });
 
       client.on('error', (err: Error) => setError(err.message));
@@ -77,16 +75,12 @@ export default function LoginPanel({ onConnected }: Props) {
               <input value={form.port} onChange={set('port')} type="number" placeholder="9002" required />
             </div>
             <div className="field">
-              <label>Admin Port</label>
-              <input value={form.adminPort} onChange={set('adminPort')} type="number" placeholder="9100" required />
+              <label>Username</label>
+              <input value={form.username} onChange={set('username')} placeholder="admin" required />
             </div>
             <div className="field">
               <label>Channel</label>
               <input value={form.channel} onChange={set('channel')} placeholder="general" required />
-            </div>
-            <div className="field full">
-              <label>Username</label>
-              <input value={form.username} onChange={set('username')} placeholder="admin" required />
             </div>
             <div className="field full">
               <label>Password</label>

@@ -12,5 +12,12 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    proxy: {
+      // Forward /api calls to the admin API — admin port never exposed to the browser
+      '/api': {
+        target: 'http://localhost:9100',
+        changeOrigin: true,
+      },
+    },
   },
 });

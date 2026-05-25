@@ -34,8 +34,7 @@ export class DraoxClient extends Emitter {
   get token():           string | null { return this._token; }
 
   get baseUrl(): string {
-    const scheme = this.cfg.useTls ? 'https' : 'http';
-    return `${scheme}://${this.cfg.host}:${this.cfg.adminPort}`;
+    return this.cfg.apiUrl;
   }
 
   constructor(config: DraoxConfig = {}) {
@@ -43,8 +42,9 @@ export class DraoxClient extends Emitter {
     this.cfg = {
       host:                config.host                ?? 'localhost',
       port:                config.port                ?? 9002,
-      adminPort:           config.adminPort           ?? 9100,
       useTls:              config.useTls              ?? false,
+      wsPath:              config.wsPath              ?? '/ws',
+      apiUrl:              config.apiUrl              ?? '',
       timeoutMs:           config.timeoutMs           ?? 10_000,
       heartbeatIntervalMs: config.heartbeatIntervalMs ?? 30_000,
       reconnect: {
@@ -70,7 +70,7 @@ export class DraoxClient extends Emitter {
     this.abort = new AbortController();
     this._setState('connecting');
 
-    await this.transport.connect(this.cfg.host, this.cfg.port, this.cfg.useTls);
+    await this.transport.connect(this.cfg.host, this.cfg.port, this.cfg.useTls, this.cfg.wsPath);
 
     this._setState('connected');
     this.emit('connected');
@@ -213,7 +213,7 @@ export class DraoxClient extends Emitter {
 
     const ok = await this.reconnector.run(async () => {
       try {
-        await this.transport.connect(this.cfg.host, this.cfg.port, this.cfg.useTls);
+        await this.transport.connect(this.cfg.host, this.cfg.port, this.cfg.useTls, this.cfg.wsPath);
         if (this._savedUserId) await this._authenticate(this._savedUserId, this._savedToken!);
         return true;
       } catch { return false; }

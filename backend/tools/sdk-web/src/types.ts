@@ -10,8 +10,12 @@ export interface ReconnectConfig {
 export interface DraoxConfig {
   host?: string;
   port?: number;
-  adminPort?: number;
   useTls?: boolean;
+  wsPath?: string;
+  /** Base URL for REST API calls.
+   *  Leave empty (default) to use relative paths — works behind a reverse proxy or Vite dev proxy.
+   *  Set explicitly (e.g. 'http://localhost:9100') only for direct / non-proxied access. */
+  apiUrl?: string;
   timeoutMs?: number;
   heartbeatIntervalMs?: number;
   reconnect?: ReconnectConfig;
@@ -20,8 +24,9 @@ export interface DraoxConfig {
 export interface ResolvedConfig {
   host: string;
   port: number;
-  adminPort: number;
   useTls: boolean;
+  wsPath: string;
+  apiUrl: string;
   timeoutMs: number;
   heartbeatIntervalMs: number;
   reconnect: Required<ReconnectConfig>;
