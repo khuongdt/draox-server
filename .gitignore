@@ -67,3 +67,6 @@ desktop.ini
 docs/
 knowledge-base/
 .claude/
+
+# Playwright test artifacts
+.playwright-mcp/

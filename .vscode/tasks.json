@@ -546,6 +546,92 @@
     },
 
     // ─────────────────────────────────────────────
+    // SDK — Web (browser-native TypeScript SDK)
+    // ─────────────────────────────────────────────
+    {
+      "label": "sdk-web-typecheck",
+      "type": "shell",
+      "command": "npx tsc --noEmit",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/sdk-web" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
+    // SDK — Web Demo (React + Vite)
+    // ─────────────────────────────────────────────
+    {
+      "label": "sdk-web-demo-install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/draox-web-demo" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "sdk-web-demo-dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/draox-web-demo" },
+      "isBackground": true,
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:\\s+http://localhost"
+        }
+      }
+    },
+    {
+      "label": "sdk-web-demo-build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/draox-web-demo" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "sdk-web-demo-preview",
+      "type": "shell",
+      "command": "npm run preview",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/draox-web-demo" },
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "vite-preview",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:\\s+http://localhost"
+        }
+      }
+    },
+    {
+      "label": "sdk-web-demo-typecheck",
+      "type": "shell",
+      "command": "npx tsc --noEmit",
+      "options": { "cwd": "${workspaceFolder}/backend/tools/draox-web-demo" },
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "sdk-web-demo-setup",
+      "detail": "Install + build draox-web-demo (with sdk-web)",
+      "dependsOn": ["sdk-web-demo-install", "sdk-web-demo-build"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ─────────────────────────────────────────────
     // SDK — TypeScript Demo
     // ─────────────────────────────────────────────
     {
@@ -661,6 +747,14 @@
       "dependsOrder": "sequence",
       "problemMatcher": [],
       "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "dev-server-and-web-demo",
+      "detail": "Start Draox server (debug) + Web demo (Vite dev) simultaneously",
+      "dependsOn": ["cargo-run-server", "sdk-web-demo-dev"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     }
   ],
