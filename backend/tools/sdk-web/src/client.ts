@@ -25,8 +25,6 @@ export class DraoxClient extends Emitter {
   private _state: ClientState = 'disconnected';
   private _sessionId: string | null = null;
   private _token: string | null = null;
-  private _savedUserId: string | null = null;
-  private _savedToken: string | null = null;
 
   get state():           ClientState   { return this._state; }
   get sessionId():       string | null { return this._sessionId; }
@@ -106,8 +104,9 @@ export class DraoxClient extends Emitter {
     if (!body.success || !body.data?.token)
       throw new Error('Login failed: unexpected response format');
 
-    this._token = body.data.token;
-    await this._authenticate(body.data.username, body.data.token);
+    this._token     = body.data.token;
+    this._sessionId = body.data.username;
+    this.emit('authenticated');
   }
 
   send(action: string, payload?: unknown): void {
@@ -153,15 +152,6 @@ export class DraoxClient extends Emitter {
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────
-
-  private async _authenticate(userId: string, token: string): Promise<void> {
-    this._savedUserId = userId;
-    this._savedToken  = token;
-
-    const data = await this.request<{ session_id: string }>('auth', { user_id: userId, token });
-    this._sessionId = data.session_id;
-    this.emit('authenticated');
-  }
 
   private _onMessage(json: string): void {
     let msg: WsFrame;
@@ -214,7 +204,6 @@ export class DraoxClient extends Emitter {
     const ok = await this.reconnector.run(async () => {
       try {
         await this.transport.connect(this.cfg.host, this.cfg.port, this.cfg.useTls, this.cfg.wsPath);
-        if (this._savedUserId) await this._authenticate(this._savedUserId, this._savedToken!);
         return true;
       } catch { return false; }
     }, this.abort!.signal);
