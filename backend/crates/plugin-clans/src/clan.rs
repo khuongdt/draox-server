@@ -59,6 +59,13 @@ pub struct Clan {
     pub icon_url: String,
     pub tags: Vec<String>,
     pub settings: HashMap<String, String>,
+    /// Pre-seeded by the server; cannot be deleted via the REST API and
+    /// has restricted join semantics (admin/operator only).
+    #[serde(default)]
+    pub is_system: bool,
+    /// When true, new join requests are rejected. Existing members remain.
+    #[serde(default)]
+    pub frozen: bool,
 }
 
 impl Default for Clan {
@@ -76,6 +83,8 @@ impl Default for Clan {
             icon_url: String::new(),
             tags: Vec::new(),
             settings: HashMap::new(),
+            is_system: false,
+            frozen: false,
         }
     }
 }
@@ -108,6 +117,8 @@ impl Clan {
             icon_url: String::new(),
             tags: Vec::new(),
             settings: HashMap::new(),
+            is_system: false,
+            frozen: false,
         }
     }
 

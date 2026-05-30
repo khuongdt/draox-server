@@ -35,6 +35,14 @@ pub struct Channel {
     pub channel_type: ChannelType,
     pub topic: String,
     pub pinned_messages: Vec<String>,
+    /// Pre-seeded by the server; cannot be deleted via the REST API and
+    /// has restricted join semantics (admin/operator only).
+    #[serde(default)]
+    pub is_system: bool,
+    /// When true, sends and new subscriptions are blocked. Existing
+    /// members retain read access.
+    #[serde(default)]
+    pub frozen: bool,
 }
 
 impl Default for Channel {
@@ -49,6 +57,8 @@ impl Default for Channel {
             channel_type: ChannelType::Public,
             topic: String::new(),
             pinned_messages: Vec::new(),
+            is_system: false,
+            frozen: false,
         }
     }
 }
@@ -67,6 +77,8 @@ impl Channel {
             channel_type: ChannelType::Public,
             topic: String::new(),
             pinned_messages: Vec::new(),
+            is_system: false,
+            frozen: false,
         }
     }
 

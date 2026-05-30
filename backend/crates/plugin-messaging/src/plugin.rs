@@ -4,11 +4,37 @@ use axum::Router;
 use plugin_sdk::context::EventBusHandle;
 use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth, WsActionContext};
 use plugin_sdk::PluginContext;
-use server_core::{Error, PluginId, Result};
+use server_core::{ClientId, Error, PluginId, Result};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 pub(crate) const PLUGIN_ID: &str = "io.draox.messaging";
+
+/// Stable id for the pre-seeded system "Draox" channel.
+pub const SYSTEM_CHANNEL_ID: &str = "ch_draox";
+/// Display name of the pre-seeded system channel.
+pub const SYSTEM_CHANNEL_NAME: &str = "Draox";
+
+/// Create the system "Draox" channel if it doesn't already exist.
+/// Idempotent — safe to call on every activation.
+fn seed_system_draox(store: &Arc<MessageStore>) {
+    if store.get_channel(&SYSTEM_CHANNEL_ID.to_string()).is_some() {
+        return;
+    }
+    let creator = ClientId::from_str("system");
+    match store.create_channel_with_id(
+        SYSTEM_CHANNEL_ID.to_string(),
+        SYSTEM_CHANNEL_NAME.to_string(),
+        creator,
+        true, // is_system
+    ) {
+        Ok(()) => info!(
+            channel_id = SYSTEM_CHANNEL_ID,
+            "seeded system channel ({SYSTEM_CHANNEL_NAME})"
+        ),
+        Err(e) => warn!(error = %e, "failed to seed system channel"),
+    }
+}
 
 /// Built-in Messaging plugin.
 ///
@@ -62,6 +88,9 @@ impl Plugin for MessagingPlugin {
                 info!("Messaging plugin activated (max messages: {max_messages})");
             }
             self.events = Some(events);
+            if let Some(store) = self.store.as_ref() {
+                seed_system_draox(store);
+            }
             Ok(())
         })
     }

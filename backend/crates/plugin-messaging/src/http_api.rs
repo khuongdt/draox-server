@@ -75,6 +75,9 @@ pub struct ChannelDto {
     pub created_at:   String,
     pub channel_type: &'static str,
     pub topic:        String,
+    pub is_system:    bool,
+    pub frozen:       bool,
+    pub member_count: usize,
 }
 
 impl From<Channel> for ChannelDto {
@@ -86,6 +89,7 @@ impl From<Channel> for ChannelDto {
             ChannelType::Announcement => "Announcement",
         };
         Self {
+            member_count: c.subscribers.len(),
             id:           c.id,
             name:         c.name,
             description:  c.description,
@@ -93,6 +97,8 @@ impl From<Channel> for ChannelDto {
             created_at:   c.created_at.to_rfc3339(),
             channel_type,
             topic:        c.topic,
+            is_system:    c.is_system,
+            frozen:       c.frozen,
         }
     }
 }
@@ -237,6 +243,8 @@ pub fn router(store: Arc<MessageStore>, events: Arc<dyn EventBusHandle>) -> Rout
         .route("/api/channels/{id}/subscribe",           post(subscribe_channel))
         .route("/api/channels/{id}/unsubscribe",         post(unsubscribe_channel))
         .route("/api/channels/{id}/typing",              post(send_typing))
+        .route("/api/channels/{id}/freeze",              post(freeze_channel))
+        .route("/api/channels/{id}/unfreeze",            post(unfreeze_channel))
         // ── Messages ────────────────────────────────────────────────
         .route("/api/messages/send",                     post(send_message))
         .route("/api/messages/{id}",                     get(get_message).delete(delete_message).patch(edit_message))
@@ -291,7 +299,13 @@ async fn get_channel(
 async fn delete_channel(
     Path(channel_id): Path<String>,
     State(state): State<ApiState>,
+    Extension(_identity): Extension<Identity>,
 ) -> axum::response::Response {
+    if let Some(ch) = state.store.get_channel(&channel_id) {
+        if ch.is_system {
+            return err_resp(StatusCode::FORBIDDEN, "system channels cannot be deleted");
+        }
+    }
     match state.store.delete_channel(&channel_id) {
         Ok(()) => {
             emit(&state.events, "channel_deleted", json!({ "channel_id": channel_id }));
@@ -325,6 +339,14 @@ async fn subscribe_channel(
     State(state): State<ApiState>,
     Extension(identity): Extension<Identity>,
 ) -> axum::response::Response {
+    if let Some(ch) = state.store.get_channel(&channel_id) {
+        if ch.is_system && !identity.can_moderate() {
+            return err_resp(StatusCode::FORBIDDEN, "system channel is admin/operator only");
+        }
+        if ch.frozen {
+            return err_resp(StatusCode::FORBIDDEN, "channel is frozen");
+        }
+    }
     let client = ClientId::from_str(&identity.user_id);
     match state.store.subscribe_channel(&channel_id, &client) {
         Ok(()) => {
@@ -378,8 +400,10 @@ async fn send_message(
     if req.text.trim().is_empty() {
         return err_resp(StatusCode::BAD_REQUEST, "text must not be empty");
     }
-    if state.store.get_channel(&req.channel_id).is_none() {
-        return err_resp(StatusCode::NOT_FOUND, format!("channel not found: {}", req.channel_id));
+    match state.store.get_channel(&req.channel_id) {
+        None => return err_resp(StatusCode::NOT_FOUND, format!("channel not found: {}", req.channel_id)),
+        Some(ch) if ch.frozen => return err_resp(StatusCode::FORBIDDEN, "channel is frozen"),
+        Some(_) => {}
     }
     let from = ClientId::from_str(&identity.user_id);
     let mut msg = Message::new(MessageType::Channel, from, req.channel_id, req.text);
@@ -449,6 +473,44 @@ async fn add_reaction(
 ) -> axum::response::Response {
     match state.store.add_reaction(&message_id, req.emoji, identity.user_id) {
         Ok(())  => ApiResponse::message("reaction added").into_response(),
+        Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
+    }
+}
+
+async fn freeze_channel(
+    Path(channel_id): Path<String>,
+    State(state): State<ApiState>,
+    Extension(identity): Extension<Identity>,
+) -> axum::response::Response {
+    set_channel_frozen(&channel_id, true, &state, &identity)
+}
+
+async fn unfreeze_channel(
+    Path(channel_id): Path<String>,
+    State(state): State<ApiState>,
+    Extension(identity): Extension<Identity>,
+) -> axum::response::Response {
+    set_channel_frozen(&channel_id, false, &state, &identity)
+}
+
+fn set_channel_frozen(
+    channel_id: &str,
+    frozen: bool,
+    state: &ApiState,
+    identity: &Identity,
+) -> axum::response::Response {
+    if !identity.is_admin() {
+        return err_resp(StatusCode::FORBIDDEN, "admin role required");
+    }
+    match state.store.set_channel_frozen(&channel_id.to_string(), frozen) {
+        Ok(()) => {
+            emit(&state.events, "channel_frozen", json!({
+                "channel_id": channel_id,
+                "frozen":     frozen,
+            }));
+            ApiResponse::message(if frozen { "channel frozen" } else { "channel unfrozen" })
+                .into_response()
+        }
         Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
     }
 }

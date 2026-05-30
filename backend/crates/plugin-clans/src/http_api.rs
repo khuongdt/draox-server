@@ -41,6 +41,8 @@ pub struct ClanDto {
     pub member_count: usize,
     pub max_members: usize,
     pub created_at:  String,
+    pub is_system:   bool,
+    pub frozen:      bool,
 }
 
 impl From<Clan> for ClanDto {
@@ -54,6 +56,8 @@ impl From<Clan> for ClanDto {
             owner_id:     c.owner_id.as_str().to_string(),
             max_members:  c.max_members,
             created_at:   c.created_at.to_rfc3339(),
+            is_system:    c.is_system,
+            frozen:       c.frozen,
         }
     }
 }
@@ -126,6 +130,8 @@ pub fn router(manager: Arc<ClanManager>, events: Arc<dyn EventBusHandle>) -> Rou
         .route("/api/clans/{id}",             get(get_clan).delete(delete_clan))
         .route("/api/clans/{id}/join",        post(join_clan))
         .route("/api/clans/{id}/leave",       post(leave_clan))
+        .route("/api/clans/{id}/freeze",      post(freeze_clan))
+        .route("/api/clans/{id}/unfreeze",    post(unfreeze_clan))
         .route("/api/clans/{id}/members",     get(list_members))
         .route("/api/clans/{id}/stats",       get(clan_stats))
         .with_state(state)
@@ -177,6 +183,11 @@ async fn delete_clan(
     State(state): State<ApiState>,
     Extension(identity): Extension<Identity>,
 ) -> axum::response::Response {
+    if let Ok(clan) = state.manager.get_clan(&clan_id) {
+        if clan.is_system {
+            return err_resp(StatusCode::FORBIDDEN, "system clans cannot be deleted");
+        }
+    }
     let requester = ClientId::from_str(&identity.user_id);
     match state.manager.delete_clan(&clan_id, &requester) {
         Ok(()) => {
@@ -192,6 +203,14 @@ async fn join_clan(
     State(state): State<ApiState>,
     Extension(identity): Extension<Identity>,
 ) -> axum::response::Response {
+    if let Ok(clan) = state.manager.get_clan(&clan_id) {
+        if clan.is_system && !identity.can_moderate() {
+            return err_resp(StatusCode::FORBIDDEN, "system clan is admin/operator only");
+        }
+        if clan.frozen {
+            return err_resp(StatusCode::FORBIDDEN, "clan is frozen");
+        }
+    }
     let client = ClientId::from_str(&identity.user_id);
     match state.manager.join_clan(&clan_id, client) {
         Ok(()) => {
@@ -202,6 +221,44 @@ async fn join_clan(
             ApiResponse::message(format!("joined {clan_id}")).into_response()
         }
         Err(e) => err_resp(StatusCode::BAD_REQUEST, e.to_string()),
+    }
+}
+
+async fn freeze_clan(
+    Path(clan_id): Path<String>,
+    State(state): State<ApiState>,
+    Extension(identity): Extension<Identity>,
+) -> axum::response::Response {
+    set_clan_frozen(&clan_id, true, &state, &identity)
+}
+
+async fn unfreeze_clan(
+    Path(clan_id): Path<String>,
+    State(state): State<ApiState>,
+    Extension(identity): Extension<Identity>,
+) -> axum::response::Response {
+    set_clan_frozen(&clan_id, false, &state, &identity)
+}
+
+fn set_clan_frozen(
+    clan_id: &str,
+    frozen: bool,
+    state: &ApiState,
+    identity: &Identity,
+) -> axum::response::Response {
+    if !identity.is_admin() {
+        return err_resp(StatusCode::FORBIDDEN, "admin role required");
+    }
+    match state.manager.set_clan_frozen(&clan_id.to_string(), frozen) {
+        Ok(()) => {
+            emit(&state.events, "clan_frozen", json!({
+                "clan_id": clan_id,
+                "frozen":  frozen,
+            }));
+            ApiResponse::message(if frozen { "clan frozen" } else { "clan unfrozen" })
+                .into_response()
+        }
+        Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
     }
 }
 

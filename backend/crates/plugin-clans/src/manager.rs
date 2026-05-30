@@ -64,6 +64,55 @@ impl ClanManager {
         Ok(id)
     }
 
+    /// Create a clan with a caller-supplied id. Used by the seed path to
+    /// install the system "Draox" clan with a stable id. Idempotent —
+    /// returns `Err` when the id is already present so reactivation is a
+    /// no-op.
+    ///
+    /// Unlike `create_clan`, this skips the "owner already in a clan"
+    /// guard because the seed uses a synthetic `system` owner.
+    pub fn create_clan_with_id(
+        &self,
+        id: ClanId,
+        name: String,
+        tag: String,
+        owner_id: ClientId,
+        is_system: bool,
+    ) -> Result<()> {
+        if self.clans.contains_key(&id) {
+            return Err(Error::Plugin {
+                plugin_id: "io.draox.clans".to_string(),
+                message:   format!("clan already exists: {id}"),
+            });
+        }
+        let mut clan = Clan::new(
+            id.clone(),
+            name.clone(),
+            tag,
+            owner_id.clone(),
+            self.default_max_members,
+        );
+        clan.is_system = is_system;
+        self.client_to_clan.insert(owner_id, id.clone());
+        self.clans.insert(id.clone(), clan);
+        info!(clan_id = %id, name = %name, is_system, "clan created with stable id");
+        Ok(())
+    }
+
+    /// Freeze or unfreeze a clan. Frozen clans reject new join requests;
+    /// existing members remain.
+    pub fn set_clan_frozen(&self, clan_id: &ClanId, frozen: bool) -> Result<()> {
+        let mut clan = self
+            .clans
+            .get_mut(clan_id)
+            .ok_or_else(|| Error::Plugin {
+                plugin_id: "io.draox.clans".to_string(),
+                message:   format!("clan not found: {clan_id}"),
+            })?;
+        clan.frozen = frozen;
+        Ok(())
+    }
+
     /// Delete a clan. Only the owner can delete.
     pub fn delete_clan(&self, clan_id: &ClanId, requester: &ClientId) -> Result<()> {
         let clan = self.get_clan(clan_id)?;

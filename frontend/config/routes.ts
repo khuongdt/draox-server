@@ -113,4 +113,11 @@ export default [
     component: './Users',
     access: 'isAdmin',
   },
+  {
+    path: '/clans-channels',
+    name: 'Clans & Channels',
+    icon: 'TeamOutlined',
+    component: './ClansChannels',
+    access: 'isAdmin',
+  },
 ];

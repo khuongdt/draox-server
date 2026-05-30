@@ -4,11 +4,38 @@ use axum::Router;
 use plugin_sdk::context::EventBusHandle;
 use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth};
 use plugin_sdk::PluginContext;
-use server_core::{PluginId, Result};
+use server_core::{ClientId, PluginId, Result};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
-const PLUGIN_ID: &str = "io.draox.clans";
+pub(crate) const PLUGIN_ID: &str = "io.draox.clans";
+
+/// Stable id for the pre-seeded system "Draox" clan.
+pub const SYSTEM_CLAN_ID: &str = "clan_draox";
+/// Display name of the pre-seeded system clan.
+pub const SYSTEM_CLAN_NAME: &str = "Draox";
+/// Tag used for the system clan.
+pub const SYSTEM_CLAN_TAG: &str = "DRAOX";
+
+fn seed_system_draox(manager: &Arc<ClanManager>) {
+    if manager.get_clan(&SYSTEM_CLAN_ID.to_string()).is_ok() {
+        return;
+    }
+    let owner = ClientId::from_str("system");
+    match manager.create_clan_with_id(
+        SYSTEM_CLAN_ID.to_string(),
+        SYSTEM_CLAN_NAME.to_string(),
+        SYSTEM_CLAN_TAG.to_string(),
+        owner,
+        true, // is_system
+    ) {
+        Ok(()) => info!(
+            clan_id = SYSTEM_CLAN_ID,
+            "seeded system clan ({SYSTEM_CLAN_NAME})"
+        ),
+        Err(e) => warn!(error = %e, "failed to seed system clan"),
+    }
+}
 
 /// Built-in Clans plugin.
 ///
@@ -57,7 +84,9 @@ impl Plugin for ClansPlugin {
         let events = Arc::clone(&ctx.events);
         Box::pin(async move {
             let max_members = 100;
-            self.manager = Some(Arc::new(ClanManager::new(max_members)));
+            let manager = Arc::new(ClanManager::new(max_members));
+            seed_system_draox(&manager);
+            self.manager = Some(manager);
             self.events  = Some(events);
             info!("Clans plugin activated (max members: {max_members})");
             Ok(())

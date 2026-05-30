@@ -113,6 +113,42 @@ impl MessageStore {
         id
     }
 
+    /// Create a channel with a caller-supplied id. Used by the seed path
+    /// to install the system "Draox" channel with a stable id. Returns
+    /// `Err` if the id is already taken so seed calls are idempotent.
+    pub fn create_channel_with_id(
+        &self,
+        id: ChannelId,
+        name: String,
+        created_by: ClientId,
+        is_system: bool,
+    ) -> Result<()> {
+        if self.channels.contains_key(&id) {
+            return Err(Error::Plugin {
+                plugin_id: "io.draox.messaging".to_string(),
+                message:   format!("channel already exists: {id}"),
+            });
+        }
+        let mut channel = Channel::new(id.clone(), name, created_by);
+        channel.is_system = is_system;
+        self.channels.insert(id, channel);
+        Ok(())
+    }
+
+    /// Freeze or unfreeze a channel. Frozen channels reject new messages
+    /// and new subscriptions; existing members keep read access.
+    pub fn set_channel_frozen(&self, channel_id: &ChannelId, frozen: bool) -> Result<()> {
+        let mut ch = self
+            .channels
+            .get_mut(channel_id)
+            .ok_or_else(|| Error::Plugin {
+                plugin_id: "io.draox.messaging".to_string(),
+                message:   format!("channel not found: {channel_id}"),
+            })?;
+        ch.frozen = frozen;
+        Ok(())
+    }
+
     /// Get a channel by ID.
     pub fn get_channel(&self, id: &ChannelId) -> Option<Channel> {
         self.channels.get(id).map(|r| r.value().clone())

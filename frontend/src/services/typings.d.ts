@@ -280,4 +280,52 @@ declare namespace API {
     timestamp: string;
     category: EventCategory;
   }
+
+  // ─── Channels (plugin-messaging) ──────────────────────────────────────────
+  type ChannelType = 'Public' | 'Private' | 'Direct' | 'Announcement';
+
+  interface Channel {
+    id: string;
+    name: string;
+    description: string;
+    created_by: string;
+    created_at: string;
+    channel_type: ChannelType;
+    topic: string;
+    is_system: boolean;
+    frozen: boolean;
+    member_count: number;
+  }
+
+  interface CreateChannelRequest {
+    name: string;
+    description?: string;
+  }
+
+  // ─── Clans (plugin-clans) ─────────────────────────────────────────────────
+  interface Clan {
+    id: string;
+    name: string;
+    tag: string;
+    description: string;
+    owner_id: string;
+    member_count: number;
+    max_members: number;
+    created_at: string;
+    is_system: boolean;
+    frozen: boolean;
+  }
+
+  interface CreateClanRequest {
+    name: string;
+    tag: string;
+  }
+
+  type ClanRole = 'Owner' | 'Officer' | 'Member' | 'Recruit';
+
+  interface ClanMember {
+    client_id: string;
+    role: ClanRole;
+    joined_at: string;
+  }
 }

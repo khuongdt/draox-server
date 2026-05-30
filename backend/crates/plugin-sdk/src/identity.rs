@@ -24,4 +24,21 @@ impl Identity {
             role: role.into(),
         }
     }
+
+    /// `true` when the caller is the platform admin.
+    pub fn is_admin(&self) -> bool {
+        self.role == "admin"
+    }
+
+    /// `true` when the caller is an operator (treated as "mod" for the
+    /// purposes of joining system channels/clans).
+    pub fn is_operator(&self) -> bool {
+        self.role == "operator"
+    }
+
+    /// `true` when the caller may join admin-only resources or take
+    /// moderate-level actions (`admin` or `operator`).
+    pub fn can_moderate(&self) -> bool {
+        self.is_admin() || self.is_operator()
+    }
 }
