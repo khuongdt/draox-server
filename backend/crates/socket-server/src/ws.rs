@@ -1,5 +1,6 @@
 use crate::handler::{ConnectionHandler, OutgoingMessage};
 use crate::tracker::ConnectionTracker;
+use crate::ws_dispatch::{WsActionDispatcher, WsFrame};
 use axum::extract::connect_info::ConnectInfo;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
@@ -14,7 +15,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub struct WsServer {
     config: WebSocketConfig,
@@ -22,6 +23,7 @@ pub struct WsServer {
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    dispatcher: Option<Arc<dyn WsActionDispatcher>>,
 }
 
 impl WsServer {
@@ -41,7 +43,17 @@ impl WsServer {
             tracker,
             handler,
             event_bus,
+            dispatcher: None,
         }
+    }
+
+    /// Attach an action dispatcher. Without one, inbound `request` frames
+    /// fall through to `handler.on_text()` (legacy behaviour). With one,
+    /// frames whose `type == "request"` are parsed and routed to the
+    /// dispatcher, and the response is written back to the client.
+    pub fn with_dispatcher(mut self, dispatcher: Arc<dyn WsActionDispatcher>) -> Self {
+        self.dispatcher = Some(dispatcher);
+        self
     }
 
     /// Bind the WebSocket server and start handling upgrades in a background task.
@@ -50,6 +62,7 @@ impl WsServer {
         let tracker = self.tracker;
         let handler = self.handler;
         let event_bus = self.event_bus;
+        let dispatcher = self.dispatcher;
         let config = self.config.clone();
         let path = self.config.path.clone();
 
@@ -59,13 +72,15 @@ impl WsServer {
                 let tracker = Arc::clone(&tracker);
                 let handler = Arc::clone(&handler);
                 let event_bus = Arc::clone(&event_bus);
+                let dispatcher = dispatcher.clone();
                 let config = config.clone();
                 move |ws: WebSocketUpgrade, ConnectInfo(addr): ConnectInfo<SocketAddr>| {
                     let tracker = Arc::clone(&tracker);
                     let handler = Arc::clone(&handler);
                     let event_bus = Arc::clone(&event_bus);
+                    let dispatcher = dispatcher.clone();
                     let config = config.clone();
-                    async move { upgrade_handler(ws, addr, tracker, handler, event_bus, config) }
+                    async move { upgrade_handler(ws, addr, tracker, handler, event_bus, dispatcher, config) }
                 }
             }),
         );
@@ -101,10 +116,11 @@ fn upgrade_handler(
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    dispatcher: Option<Arc<dyn WsActionDispatcher>>,
     config: WebSocketConfig,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| {
-        handle_ws_connection(socket, addr, tracker, handler, event_bus, config)
+        handle_ws_connection(socket, addr, tracker, handler, event_bus, dispatcher, config)
     })
 }
 
@@ -114,6 +130,7 @@ async fn handle_ws_connection(
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    dispatcher: Option<Arc<dyn WsActionDispatcher>>,
     config: WebSocketConfig,
 ) {
     let conn_id = ConnectionId::new();
@@ -141,7 +158,7 @@ async fn handle_ws_connection(
 
     tracker.update_state(&conn_id, ConnectionState::Established);
 
-    ws_connection_task(socket, conn_id, addr, rx, tracker, handler, event_bus, config).await;
+    ws_connection_task(socket, conn_id, addr, rx, tracker, handler, event_bus, dispatcher, config).await;
 }
 
 async fn ws_connection_task(
@@ -152,6 +169,7 @@ async fn ws_connection_task(
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    dispatcher: Option<Arc<dyn WsActionDispatcher>>,
     config: WebSocketConfig,
 ) {
     let (mut sender, mut receiver) = socket.split();
@@ -162,6 +180,10 @@ async fn ws_connection_task(
     let mut ping_timer = time::interval(ping_interval);
     let mut waiting_for_pong = false;
     let mut pong_deadline: Option<time::Instant> = None;
+
+    // Subscribe to the server-wide event bus so we can forward plugin
+    // events (ServerEvent::Custom) to this client as `type:"event"` frames.
+    let mut event_rx = event_bus.subscribe_all();
 
     let reason = loop {
         tokio::select! {
@@ -174,7 +196,15 @@ async fn ws_connection_task(
                             break "message too large".to_string();
                         }
                         tracker.record_received(&conn_id, s.len() as u64);
-                        handler.on_text(&conn_id, &s).await;
+                        if let Some(reply) = handle_text_frame(&s, &conn_id, dispatcher.as_deref()).await {
+                            if sender.send(Message::Text(reply.into())).await.is_err() {
+                                break "send failed".to_string();
+                            }
+                        } else {
+                            // Frame was not a recognised typed frame — fall back to
+                            // the legacy ConnectionHandler hook.
+                            handler.on_text(&conn_id, &s).await;
+                        }
                     }
                     Some(Ok(Message::Binary(data))) => {
                         if data.len() > max_message_size {
@@ -195,6 +225,27 @@ async fn ws_connection_task(
                     Some(Ok(Message::Close(_))) => break "closed by peer".to_string(),
                     Some(Err(e)) => break format!("ws error: {e}"),
                     None => break "connection ended".to_string(),
+                }
+            }
+
+            // Forward server events (plugin Custom events) to this client.
+            ev = event_rx.recv() => {
+                match ev {
+                    Ok(event) => {
+                        if let Some(frame_json) = server_event_to_frame_json(&event) {
+                            tracker.record_sent(&conn_id, frame_json.len() as u64);
+                            if sender.send(Message::Text(frame_json.into())).await.is_err() {
+                                break "event send failed".to_string();
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!(conn_id = %conn_id, dropped = n, "WS event subscriber lagged; some events dropped");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        // Event bus is gone — sleep arm out, the loop will exit
+                        // through another path eventually.
+                    }
                 }
             }
 
@@ -254,6 +305,62 @@ async fn ws_connection_task(
     });
 
     debug!(addr = %addr, "WS connection closed");
+}
+
+// ─── Typed frame handling ────────────────────────────────────────────────────
+
+/// Try to interpret a text WS frame as a typed `WsFrame`. Returns a JSON
+/// string to be sent back to the client, or `None` if the frame was not a
+/// recognised typed frame (in which case the caller falls back to the
+/// legacy `ConnectionHandler::on_text` hook).
+async fn handle_text_frame(
+    raw: &str,
+    conn_id: &ConnectionId,
+    dispatcher: Option<&dyn WsActionDispatcher>,
+) -> Option<String> {
+    let frame: WsFrame = serde_json::from_str(raw).ok()?;
+    let frame_type = frame.frame_type.as_deref()?;
+
+    match frame_type {
+        "ping" => {
+            let pong = WsFrame::pong(frame.ts);
+            serde_json::to_string(&pong).ok()
+        }
+        "request" => {
+            let action = frame.action.clone().unwrap_or_default();
+            let payload = frame.payload.unwrap_or(serde_json::Value::Null);
+            let id = frame.id.clone();
+            let reply = match dispatcher {
+                Some(d) => match d.dispatch(action.clone(), payload, conn_id).await {
+                    Ok(data)  => WsFrame::response_ok(id, data),
+                    Err(e)    => WsFrame::response_err(id, e.to_string()),
+                },
+                None => WsFrame::response_err(id, "WS dispatcher not configured"),
+            };
+            serde_json::to_string(&reply).ok()
+        }
+        _ => None,
+    }
+}
+
+/// Convert a `ServerEvent::Custom` into a JSON frame the SDK expects:
+/// `{ type:"event", category, name, data, timestamp }`.
+///
+/// Non-`Custom` events are filtered out — they are internal server bookkeeping
+/// that the client has no need to see. (Operators get them via admin WS streams,
+/// which are a separate route.)
+fn server_event_to_frame_json(event: &ServerEvent) -> Option<String> {
+    if let ServerEvent::Custom { source, name, payload } = event {
+        let frame = WsFrame::event(
+            source.clone(),
+            name.clone(),
+            payload.clone(),
+            chrono::Utc::now().to_rfc3339(),
+        );
+        serde_json::to_string(&frame).ok()
+    } else {
+        None
+    }
 }
 
 // ─── Subprotocol Negotiation ─────────────────────────────────────────────────

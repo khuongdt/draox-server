@@ -9,7 +9,7 @@ use connection_manager::SessionManager;
 use data_store::create_storage_backend;
 use grpc_api::{GrpcServer, GrpcState};
 use plugin_clans::ClansPlugin;
-use plugin_host::{ContextBuilder, FullMarketplaceRegistry, PluginRegistry, RouteRegistry};
+use plugin_host::{ContextBuilder, FullMarketplaceRegistry, PluginRegistry, PluginWsDispatcher, RouteRegistry};
 use plugin_messaging::MessagingPlugin;
 use server_config::ConfigLoader;
 use server_core::event::EventBus;
@@ -132,13 +132,19 @@ async fn main() -> anyhow::Result<()> {
     // Network metrics
     let network_metrics = Arc::new(NetworkMetrics::new());
 
+    // ── WS action dispatcher (routes WS `request` frames to plugins) ──
+    let ws_dispatcher: Arc<dyn socket_server::WsActionDispatcher> = Arc::new(
+        PluginWsDispatcher::new(Arc::clone(&plugin_registry), Arc::clone(&event_bus)),
+    );
+
     // ── Multi-protocol listener ──
     let listener = MultiProtocolListener::with_tracker(
         Arc::clone(&config),
         Arc::clone(&connection_tracker),
         Arc::clone(&traffic_guard) as Arc<dyn socket_server::ConnectionHandler>,
         Arc::clone(&event_bus),
-    );
+    )
+    .with_ws_dispatcher(ws_dispatcher);
 
     let addresses = listener.start(&shutdown).await?;
 

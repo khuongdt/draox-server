@@ -18,7 +18,6 @@ server-core    = { workspace = true }
 server-config  = { workspace = true }
 connection-manager = { workspace = true }
 plugin-host    = { workspace = true }
-plugin-messaging = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.12"

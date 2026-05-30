@@ -1,27 +1,30 @@
 use crate::http_api;
 use crate::store::MessageStore;
 use axum::Router;
-use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth};
+use plugin_sdk::context::EventBusHandle;
+use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth, WsActionContext};
 use plugin_sdk::PluginContext;
-use server_core::{PluginId, Result};
+use server_core::{Error, PluginId, Result};
 use std::sync::Arc;
 use tracing::info;
 
-const PLUGIN_ID: &str = "io.draox.messaging";
+pub(crate) const PLUGIN_ID: &str = "io.draox.messaging";
 
 /// Built-in Messaging plugin.
 ///
 /// Provides direct, channel, and broadcast messaging between clients.
 pub struct MessagingPlugin {
-    id: PluginId,
-    store: Option<Arc<MessageStore>>,
+    id:     PluginId,
+    store:  Option<Arc<MessageStore>>,
+    events: Option<Arc<dyn EventBusHandle>>,
 }
 
 impl MessagingPlugin {
     pub fn new() -> Self {
         Self {
-            id: PluginId::from_str(PLUGIN_ID),
-            store: None,
+            id:     PluginId::from_str(PLUGIN_ID),
+            store:  None,
+            events: None,
         }
     }
 
@@ -50,13 +53,15 @@ impl Plugin for MessagingPlugin {
         env!("CARGO_PKG_VERSION")
     }
 
-    fn activate(&mut self, _ctx: PluginContext) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
+    fn activate(&mut self, ctx: PluginContext) -> BoxFuture<'_, Result<()>> {
+        let events = Arc::clone(&ctx.events);
+        Box::pin(async move {
             if self.store.is_none() {
                 let max_messages = 100_000;
                 self.store = Some(Arc::new(MessageStore::new(max_messages)));
                 info!("Messaging plugin activated (max messages: {max_messages})");
             }
+            self.events = Some(events);
             Ok(())
         })
     }
@@ -64,6 +69,7 @@ impl Plugin for MessagingPlugin {
     fn deactivate(&mut self) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.store = None;
+            self.events = None;
             info!("Messaging plugin deactivated");
             Ok(())
         })
@@ -85,9 +91,34 @@ impl Plugin for MessagingPlugin {
         // Only contribute routes once the plugin has been activated and
         // owns a store. Returning None before activation is safe — admin-api
         // will simply skip this plugin until `activate()` populates the store.
-        self.store
-            .as_ref()
-            .map(|store| http_api::router(Arc::clone(store)))
+        match (self.store.as_ref(), self.events.as_ref()) {
+            (Some(store), Some(events)) => {
+                Some(http_api::router(Arc::clone(store), Arc::clone(events)))
+            }
+            _ => None,
+        }
+    }
+
+    fn ws_action_prefix(&self) -> Option<&'static str> {
+        Some("messaging.")
+    }
+
+    fn handle_ws_action(
+        &self,
+        action: String,
+        payload: serde_json::Value,
+        ctx: WsActionContext,
+    ) -> BoxFuture<'_, Result<serde_json::Value>> {
+        Box::pin(async move {
+            let store = self
+                .store
+                .as_ref()
+                .ok_or_else(|| Error::Plugin {
+                    plugin_id: PLUGIN_ID.to_string(),
+                    message:   "messaging plugin not activated".to_string(),
+                })?;
+            crate::ws_actions::dispatch(store, &ctx, &action, payload).await
+        })
     }
 }
 

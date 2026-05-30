@@ -1,9 +1,11 @@
-use crate::context::PluginContext;
+use crate::context::{EventBusHandle, PluginContext};
+use crate::identity::Identity;
 use axum::Router;
-use server_core::{PluginId, Result};
+use server_core::{ConnectionId, PluginId, Result};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 // ────────────────────────────────────────────────────────
 // Plugin trait — must be implemented by all plugins
@@ -54,6 +56,53 @@ pub trait Plugin: Send + Sync + 'static {
     fn http_router(&self) -> Option<Router> {
         None
     }
+
+    /// Optional: action-prefix this plugin claims on the WebSocket channel.
+    ///
+    /// Returning `Some("messaging.")` makes the plugin-host's WS dispatcher
+    /// route any frame whose `action` field starts with `"messaging."`
+    /// to `handle_ws_action()`. Default returns `None` — plugins without
+    /// a WS surface don't override.
+    fn ws_action_prefix(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Optional: handle an incoming WebSocket request frame.
+    ///
+    /// Called by `plugin-host::PluginRegistry::dispatch_ws_action` when an
+    /// inbound frame's `action` matches this plugin's `ws_action_prefix`.
+    /// The returned JSON value is sent back to the client as a `response`
+    /// frame. Returning `Err` produces an error frame.
+    ///
+    /// Default returns "not implemented" so plugins that only contribute
+    /// REST routes don't have to override this.
+    fn handle_ws_action(
+        &self,
+        _action: String,
+        _payload: serde_json::Value,
+        _ctx: WsActionContext,
+    ) -> BoxFuture<'_, Result<serde_json::Value>> {
+        Box::pin(async {
+            Err(server_core::Error::Plugin {
+                plugin_id: "unknown".to_string(),
+                message:  "WS action handling not implemented for this plugin".to_string(),
+            })
+        })
+    }
+}
+
+// ────────────────────────────────────────────────────────
+// WS action context
+// ────────────────────────────────────────────────────────
+
+/// Context handed to a plugin when it handles a WS request frame.
+///
+/// `events` lets the plugin publish events that the WS forwarder then
+/// fans out to subscribed clients (per Phase 3 of the architecture plan).
+pub struct WsActionContext {
+    pub identity:      Identity,
+    pub connection_id: ConnectionId,
+    pub events:        Arc<dyn EventBusHandle>,
 }
 
 // ────────────────────────────────────────────────────────

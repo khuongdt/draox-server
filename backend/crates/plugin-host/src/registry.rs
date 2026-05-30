@@ -3,10 +3,11 @@ use crate::lifecycle::validate_transition;
 use axum::Router;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use plugin_sdk::traits::{Plugin, PluginHealth, PluginState};
+use plugin_sdk::traits::{Plugin, PluginHealth, PluginState, WsActionContext};
 use server_core::event::{EventBus, ServerEvent};
 use server_core::{Error, PluginId, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -448,6 +449,55 @@ impl PluginRegistry {
             }
         }
         routers
+    }
+
+    /// Dispatch an incoming WebSocket request frame to the plugin whose
+    /// `ws_action_prefix` matches the action.
+    ///
+    /// Walks active plugins, picks the longest matching prefix, locks the
+    /// plugin briefly, and forwards the call. Returns `Err` if no active
+    /// plugin claims the action.
+    pub async fn dispatch_ws_action(
+        &self,
+        action: &str,
+        payload: Value,
+        ctx: WsActionContext,
+    ) -> Result<Value> {
+        // Snapshot active IDs to avoid holding shard locks across awaits.
+        let active_ids: Vec<PluginId> = self
+            .plugins
+            .iter()
+            .filter(|e| e.state.is_active())
+            .map(|e| e.key().clone())
+            .collect();
+
+        // Longest-prefix match.
+        let mut best: Option<(usize, PluginId)> = None;
+        for id in &active_ids {
+            if let Some(entry) = self.plugins.get(id) {
+                let plugin = entry.plugin.lock().await;
+                if let Some(prefix) = plugin.ws_action_prefix() {
+                    if action.starts_with(prefix) {
+                        let len = prefix.len();
+                        if best.as_ref().map_or(true, |(b, _)| len > *b) {
+                            best = Some((len, id.clone()));
+                        }
+                    }
+                }
+            }
+        }
+
+        let target_id = best.map(|(_, id)| id).ok_or_else(|| Error::Plugin {
+            plugin_id: "unknown".to_string(),
+            message:  format!("no active plugin handles action: {action}"),
+        })?;
+
+        let entry = self
+            .plugins
+            .get(&target_id)
+            .ok_or_else(|| Error::PluginNotFound(target_id.to_string()))?;
+        let plugin = entry.plugin.lock().await;
+        plugin.handle_ws_action(action.to_string(), payload, ctx).await
     }
 
     /// Deactivate all active plugins (for graceful shutdown).

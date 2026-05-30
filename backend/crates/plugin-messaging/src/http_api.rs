@@ -6,8 +6,11 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
+use plugin_sdk::context::EventBusHandle;
 use plugin_sdk::Identity;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use server_core::event::ServerEvent;
 use server_core::ClientId;
 use std::sync::Arc;
 
@@ -47,7 +50,16 @@ pub fn messaging_routes() -> Vec<MessagingRouteInfo> {
 
 #[derive(Clone)]
 struct ApiState {
-    store: Arc<MessageStore>,
+    store:  Arc<MessageStore>,
+    events: Arc<dyn EventBusHandle>,
+}
+
+fn emit(events: &Arc<dyn EventBusHandle>, name: &str, payload: serde_json::Value) {
+    events.publish(ServerEvent::Custom {
+        source:  "messaging".to_string(),
+        name:    name.to_string(),
+        payload,
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,8 +227,8 @@ pub struct ReactionRequest {
 // Router constructor — what the plugin returns from `Plugin::http_router`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn router(store: Arc<MessageStore>) -> Router {
-    let state = ApiState { store };
+pub fn router(store: Arc<MessageStore>, events: Arc<dyn EventBusHandle>) -> Router {
+    let state = ApiState { store, events };
     Router::new()
         // ── Channels ────────────────────────────────────────────────
         .route("/api/channels",                          get(list_channels).post(create_channel))
@@ -257,8 +269,12 @@ async fn create_channel(
     let creator = ClientId::from_str(&identity.user_id);
     let ch_id = state.store.create_channel(req.name, creator);
     match state.store.get_channel(&ch_id) {
-        Some(ch) => ApiResponse::ok(ChannelDto::from(ch)).into_response(),
-        None     => err_resp(StatusCode::INTERNAL_SERVER_ERROR, "failed to retrieve created channel"),
+        Some(ch) => {
+            let dto = ChannelDto::from(ch);
+            emit(&state.events, "channel_created", json!({ "channel": &dto }));
+            ApiResponse::ok(dto).into_response()
+        }
+        None => err_resp(StatusCode::INTERNAL_SERVER_ERROR, "failed to retrieve created channel"),
     }
 }
 
@@ -277,7 +293,10 @@ async fn delete_channel(
     State(state): State<ApiState>,
 ) -> axum::response::Response {
     match state.store.delete_channel(&channel_id) {
-        Ok(())  => ApiResponse::message(format!("channel {channel_id} deleted")).into_response(),
+        Ok(()) => {
+            emit(&state.events, "channel_deleted", json!({ "channel_id": channel_id }));
+            ApiResponse::message(format!("channel {channel_id} deleted")).into_response()
+        }
         Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
     }
 }
@@ -308,7 +327,13 @@ async fn subscribe_channel(
 ) -> axum::response::Response {
     let client = ClientId::from_str(&identity.user_id);
     match state.store.subscribe_channel(&channel_id, &client) {
-        Ok(())  => ApiResponse::message(format!("subscribed to {channel_id}")).into_response(),
+        Ok(()) => {
+            emit(&state.events, "user_joined_channel", json!({
+                "channel_id": channel_id,
+                "user_id":    identity.user_id,
+            }));
+            ApiResponse::message(format!("subscribed to {channel_id}")).into_response()
+        }
         Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
     }
 }
@@ -320,18 +345,29 @@ async fn unsubscribe_channel(
 ) -> axum::response::Response {
     let client = ClientId::from_str(&identity.user_id);
     match state.store.unsubscribe_channel(&channel_id, &client) {
-        Ok(())  => ApiResponse::message(format!("unsubscribed from {channel_id}")).into_response(),
+        Ok(()) => {
+            emit(&state.events, "user_left_channel", json!({
+                "channel_id": channel_id,
+                "user_id":    identity.user_id,
+            }));
+            ApiResponse::message(format!("unsubscribed from {channel_id}")).into_response()
+        }
         Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
     }
 }
 
 async fn send_typing(
-    Path(_channel_id): Path<String>,
-    Extension(_identity): Extension<Identity>,
+    Path(channel_id): Path<String>,
+    State(state): State<ApiState>,
+    Extension(identity): Extension<Identity>,
 ) -> impl IntoResponse {
-    // Typing indicators are forwarded via the WebSocket event bus in Phase 3.
-    // For now, accept the call so the SDK does not log a 404.
-    ApiResponse::message("typing accepted")
+    emit(&state.events, "typing_started", json!({
+        "channel_id": channel_id,
+        "user_id":    identity.user_id,
+        "username":   identity.user_id,
+        "is_typing":  true,
+    }));
+    ApiResponse::message("typing forwarded")
 }
 
 async fn send_message(
@@ -351,7 +387,9 @@ async fn send_message(
         msg = msg.with_reply_to(reply_to);
     }
     state.store.store_message(msg.clone());
-    ApiResponse::ok(SendMessageResponseDto { message: MessageDto::from(msg) }).into_response()
+    let dto = MessageDto::from(msg);
+    emit(&state.events, "message_sent", json!({ "message": &dto }));
+    ApiResponse::ok(SendMessageResponseDto { message: dto }).into_response()
 }
 
 async fn get_message(
@@ -369,8 +407,21 @@ async fn delete_message(
     State(state): State<ApiState>,
     Extension(_identity): Extension<Identity>,
 ) -> axum::response::Response {
+    // Capture channel_id before deletion so we can emit it in the event.
+    let channel_id = state
+        .store
+        .get_message(&message_id)
+        .map(|m| m.to.clone());
     match state.store.delete_message(&message_id) {
-        Ok(())  => ApiResponse::message(format!("message {message_id} deleted")).into_response(),
+        Ok(()) => {
+            if let Some(cid) = channel_id {
+                emit(&state.events, "message_deleted", json!({
+                    "message_id": message_id,
+                    "channel_id": cid,
+                }));
+            }
+            ApiResponse::message(format!("message {message_id} deleted")).into_response()
+        }
         Err(e) => err_resp(StatusCode::NOT_FOUND, e.to_string()),
     }
 }
@@ -434,8 +485,21 @@ mod tests {
 
     #[test]
     fn test_router_builds_with_store() {
+        use server_core::event::EventBus;
+        use tokio::sync::broadcast;
+
+        struct NoopEvents;
+        impl EventBusHandle for NoopEvents {
+            fn publish(&self, _event: ServerEvent) {}
+            fn subscribe(&self, _topic: &str) -> broadcast::Receiver<Arc<ServerEvent>> {
+                broadcast::channel::<Arc<ServerEvent>>(1).0.subscribe()
+            }
+        }
+
+        let _ = EventBus::new(8); // referenced so the import isn't dead
         let store = Arc::new(MessageStore::new(100));
-        let _router: Router = router(store);
+        let events: Arc<dyn EventBusHandle> = Arc::new(NoopEvents);
+        let _router: Router = router(store, events);
         // If it compiles + builds, the route table is well-formed.
     }
 }

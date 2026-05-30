@@ -12,6 +12,7 @@ pub mod tls;
 pub mod tracker;
 pub mod udp;
 pub mod ws;
+pub mod ws_dispatch;
 pub mod ws_rooms;
 
 pub use backpressure::{BackpressureManager, BackpressureState};
@@ -26,4 +27,5 @@ pub use sse::{SseEvent, SseManager, SseStream};
 pub use tracker::ConnectionTracker;
 pub use udp::{UdpRateLimiter, join_multicast, leave_multicast};
 pub use ws::SubprotocolNegotiator;
+pub use ws_dispatch::{WsActionDispatcher, WsFrame};
 pub use ws_rooms::{RoomInfo, RoomManager};

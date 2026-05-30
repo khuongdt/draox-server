@@ -5,6 +5,7 @@ pub mod clan;
 pub mod db_schema;
 pub mod divisions;
 pub mod events;
+pub mod http_api;
 pub mod invites;
 pub mod manifest;
 pub mod manager;

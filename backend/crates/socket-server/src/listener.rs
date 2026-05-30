@@ -4,6 +4,7 @@ use crate::tcp::TcpServer;
 use crate::tracker::ConnectionTracker;
 use crate::udp::UdpServer;
 use crate::ws::WsServer;
+use crate::ws_dispatch::WsActionDispatcher;
 use server_config::DraoxConfig;
 use server_core::event::EventBus;
 use server_core::types::ShutdownSignal;
@@ -29,6 +30,7 @@ pub struct MultiProtocolListener {
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    ws_dispatcher: Option<Arc<dyn WsActionDispatcher>>,
 }
 
 impl MultiProtocolListener {
@@ -47,6 +49,7 @@ impl MultiProtocolListener {
             tracker,
             handler,
             event_bus,
+            ws_dispatcher: None,
         }
     }
 
@@ -66,7 +69,15 @@ impl MultiProtocolListener {
             tracker,
             handler,
             event_bus,
+            ws_dispatcher: None,
         }
+    }
+
+    /// Attach a WebSocket action dispatcher. When set, inbound WS
+    /// `request` frames are parsed and routed through the dispatcher.
+    pub fn with_ws_dispatcher(mut self, dispatcher: Arc<dyn WsActionDispatcher>) -> Self {
+        self.ws_dispatcher = Some(dispatcher);
+        self
     }
 
     /// Get a reference to the shared connection tracker.
@@ -109,13 +120,16 @@ impl MultiProtocolListener {
 
         // WebSocket
         if self.config.websocket.enabled {
-            let ws = WsServer::new(
+            let mut ws = WsServer::new(
                 self.config.websocket.clone(),
                 host,
                 Arc::clone(&self.tracker),
                 Arc::clone(&self.handler),
                 Arc::clone(&self.event_bus),
             );
+            if let Some(disp) = &self.ws_dispatcher {
+                ws = ws.with_dispatcher(Arc::clone(disp));
+            }
             addrs.ws = Some(ws.start(shutdown.subscribe()).await?);
         }
 

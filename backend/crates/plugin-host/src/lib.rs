@@ -16,6 +16,7 @@ pub mod signature;
 pub mod state_persistence;
 pub mod update_checker;
 pub mod version_resolver;
+pub mod ws_dispatcher;
 
 pub use context_builder::ContextBuilder;
 pub use dependency_graph::{DependencyError, DependencyGraph};
@@ -40,3 +41,4 @@ pub use state_persistence::{PersistedPluginState, StatePersistence};
 pub use marketplace_client::RegistryClient;
 pub use update_checker::UpdateChecker;
 pub use version_resolver::VersionResolver;
+pub use ws_dispatcher::PluginWsDispatcher;

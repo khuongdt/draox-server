@@ -13,6 +13,7 @@ pub mod presence;
 pub mod receipts;
 pub mod store;
 pub mod typing;
+pub mod ws_actions;
 
 pub use channel::{Channel, ChannelId, ChannelType};
 pub use db_schema::{schema_for, table_names, MESSAGING_SCHEMAS};

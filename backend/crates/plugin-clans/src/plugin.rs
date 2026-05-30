@@ -1,4 +1,7 @@
+use crate::http_api;
 use crate::manager::ClanManager;
+use axum::Router;
+use plugin_sdk::context::EventBusHandle;
 use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth};
 use plugin_sdk::PluginContext;
 use server_core::{PluginId, Result};
@@ -11,15 +14,17 @@ const PLUGIN_ID: &str = "io.draox.clans";
 ///
 /// Provides clan/group management: create, join, leave, roles, divisions.
 pub struct ClansPlugin {
-    id: PluginId,
+    id:      PluginId,
     manager: Option<Arc<ClanManager>>,
+    events:  Option<Arc<dyn EventBusHandle>>,
 }
 
 impl ClansPlugin {
     pub fn new() -> Self {
         Self {
-            id: PluginId::from_str(PLUGIN_ID),
+            id:      PluginId::from_str(PLUGIN_ID),
             manager: None,
+            events:  None,
         }
     }
 
@@ -48,10 +53,12 @@ impl Plugin for ClansPlugin {
         env!("CARGO_PKG_VERSION")
     }
 
-    fn activate(&mut self, _ctx: PluginContext) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
+    fn activate(&mut self, ctx: PluginContext) -> BoxFuture<'_, Result<()>> {
+        let events = Arc::clone(&ctx.events);
+        Box::pin(async move {
             let max_members = 100;
             self.manager = Some(Arc::new(ClanManager::new(max_members)));
+            self.events  = Some(events);
             info!("Clans plugin activated (max members: {max_members})");
             Ok(())
         })
@@ -60,6 +67,7 @@ impl Plugin for ClansPlugin {
     fn deactivate(&mut self) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.manager = None;
+            self.events  = None;
             info!("Clans plugin deactivated");
             Ok(())
         })
@@ -75,6 +83,15 @@ impl Plugin for ClansPlugin {
                 }
             }
         })
+    }
+
+    fn http_router(&self) -> Option<Router> {
+        match (self.manager.as_ref(), self.events.as_ref()) {
+            (Some(mgr), Some(events)) => {
+                Some(http_api::router(Arc::clone(mgr), Arc::clone(events)))
+            }
+            _ => None,
+        }
     }
 }
 
