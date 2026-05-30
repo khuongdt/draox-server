@@ -1,6 +1,7 @@
 use crate::http_api;
 use crate::manager::ClanManager;
 use axum::Router;
+use data_store::StorageBackend;
 use plugin_sdk::context::EventBusHandle;
 use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth};
 use plugin_sdk::PluginContext;
@@ -44,6 +45,7 @@ pub struct ClansPlugin {
     id:      PluginId,
     manager: Option<Arc<ClanManager>>,
     events:  Option<Arc<dyn EventBusHandle>>,
+    storage: Option<Arc<dyn StorageBackend>>,
 }
 
 impl ClansPlugin {
@@ -52,6 +54,19 @@ impl ClansPlugin {
             id:      PluginId::from_str(PLUGIN_ID),
             manager: None,
             events:  None,
+            storage: None,
+        }
+    }
+
+    /// Build a Clans plugin that mirrors clan state to `storage`. On
+    /// `activate()` the plugin re-hydrates the clan cache from `storage`
+    /// before running the idempotent system "Draox" seed.
+    pub fn with_storage(storage: Arc<dyn StorageBackend>) -> Self {
+        Self {
+            id:      PluginId::from_str(PLUGIN_ID),
+            manager: None,
+            events:  None,
+            storage: Some(storage),
         }
     }
 
@@ -84,11 +99,18 @@ impl Plugin for ClansPlugin {
         let events = Arc::clone(&ctx.events);
         Box::pin(async move {
             let max_members = 100;
-            let manager = Arc::new(ClanManager::new(max_members));
+            let mut manager = ClanManager::new(max_members);
+            if let Some(storage) = self.storage.as_ref() {
+                manager.attach_storage(Arc::clone(storage));
+            }
+            let manager = Arc::new(manager);
+            let loaded = manager.load_from_storage().await;
             seed_system_draox(&manager);
             self.manager = Some(manager);
             self.events  = Some(events);
-            info!("Clans plugin activated (max members: {max_members})");
+            info!(
+                "Clans plugin activated (max members: {max_members}, loaded {loaded} clans from storage)"
+            );
             Ok(())
         })
     }

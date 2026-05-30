@@ -109,9 +109,11 @@ async fn main() -> anyhow::Result<()> {
     );
     let plugin_registry = Arc::new(PluginRegistry::new(ctx_builder, Arc::clone(&event_bus)));
 
-    // Register built-in plugins
-    plugin_registry.register_builtin(Box::new(ClansPlugin::new()))?;
-    plugin_registry.register_builtin(Box::new(MessagingPlugin::new()))?;
+    // Register built-in plugins. Both messaging and clans persist their
+    // top-level state (channels / clans + memberships) through the shared
+    // StorageBackend. Messages, reactions, presence stay in-memory.
+    plugin_registry.register_builtin(Box::new(ClansPlugin::with_storage(Arc::clone(&storage))))?;
+    plugin_registry.register_builtin(Box::new(MessagingPlugin::with_storage(Arc::clone(&storage))))?;
 
     info!("Registered {} built-in plugins", plugin_registry.count());
 

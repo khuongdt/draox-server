@@ -17,6 +17,7 @@ serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
 axum.workspace = true
+data-store.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

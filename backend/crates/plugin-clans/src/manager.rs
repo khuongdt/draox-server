@@ -1,10 +1,19 @@
 use crate::clan::{Clan, ClanId, ClanMember, ClanRole};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use data_store::StorageBackend;
 use serde::{Deserialize, Serialize};
 use server_core::{ClientId, Error, Result};
 use std::collections::HashMap;
-use tracing::{debug, info};
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tracing::{debug, info, warn};
+
+/// See `plugin-messaging::store::PersistOp` for rationale.
+enum PersistOp {
+    Save(ClanId),
+    Delete(ClanId),
+}
 
 /// Statistics for a clan.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,21 +25,118 @@ pub struct ClanStats {
     pub age_days: i64,
 }
 
+/// Storage namespace used for clan rows.
+const STORAGE_NS: &str = "clans";
+/// Key prefix for clan rows: full key is `clan:{id}`.
+const CLAN_KEY_PREFIX: &str = "clan:";
+
+fn clan_key(id: &ClanId) -> String {
+    format!("{CLAN_KEY_PREFIX}{id}")
+}
+
 /// Manages all clans: CRUD, membership, roles.
 pub struct ClanManager {
-    clans: DashMap<ClanId, Clan>,
+    clans: Arc<DashMap<ClanId, Clan>>,
     client_to_clan: DashMap<ClientId, ClanId>,
     banned_clients: DashMap<ClanId, dashmap::DashSet<String>>,
     default_max_members: usize,
+    /// Sender feeding the per-manager persistence writer task. See the
+    /// `PersistOp` documentation for why this is serialized rather than
+    /// per-mutation `tokio::spawn`.
+    persist_tx: Option<mpsc::UnboundedSender<PersistOp>>,
+    /// Backend handle used by `load_from_storage` only.
+    loader_storage: Option<Arc<dyn StorageBackend>>,
 }
 
 impl ClanManager {
     pub fn new(default_max_members: usize) -> Self {
         Self {
-            clans: DashMap::new(),
+            clans: Arc::new(DashMap::new()),
             client_to_clan: DashMap::new(),
             banned_clients: DashMap::new(),
             default_max_members,
+            persist_tx: None,
+            loader_storage: None,
+        }
+    }
+
+    /// Attach a persistent backend and spawn the writer task.
+    pub fn attach_storage(&mut self, storage: Arc<dyn StorageBackend>) {
+        let (tx, mut rx) = mpsc::unbounded_channel::<PersistOp>();
+        let clans = Arc::clone(&self.clans);
+        let backend = Arc::clone(&storage);
+        tokio::spawn(async move {
+            while let Some(op) = rx.recv().await {
+                match op {
+                    PersistOp::Save(id) => {
+                        let key = clan_key(&id);
+                        let value = {
+                            let Some(c_ref) = clans.get(&id) else {
+                                let _ = backend.delete(STORAGE_NS, &key).await;
+                                continue;
+                            };
+                            match serde_json::to_value(c_ref.value()) {
+                                Ok(v)  => v,
+                                Err(e) => {
+                                    warn!(error = %e, key = %key, "serialize clan failed");
+                                    continue;
+                                }
+                            }
+                        };
+                        if let Err(e) = backend.set(STORAGE_NS, &key, value).await {
+                            warn!(error = %e, key = %key, "persist clan failed");
+                        }
+                    }
+                    PersistOp::Delete(id) => {
+                        let key = clan_key(&id);
+                        if let Err(e) = backend.delete(STORAGE_NS, &key).await {
+                            warn!(error = %e, key = %key, "delete persisted clan failed");
+                        }
+                    }
+                }
+            }
+        });
+        self.persist_tx = Some(tx);
+        self.loader_storage = Some(storage);
+    }
+
+    /// Re-populate `clans` and the `client_to_clan` index from the
+    /// persistent backend. Returns the number of clans loaded.
+    pub async fn load_from_storage(&self) -> usize {
+        let Some(storage) = self.loader_storage.as_ref() else { return 0 };
+        let keys = match storage.list_keys(STORAGE_NS, CLAN_KEY_PREFIX).await {
+            Ok(k)  => k,
+            Err(e) => { warn!(error = %e, "list clan keys failed"); return 0 }
+        };
+        let mut loaded = 0;
+        for key in keys {
+            match storage.get(STORAGE_NS, &key).await {
+                Ok(Some(value)) => match serde_json::from_value::<Clan>(value) {
+                    Ok(clan) => {
+                        for member in &clan.members {
+                            self.client_to_clan.insert(member.client_id.clone(), clan.id.clone());
+                        }
+                        self.clans.insert(clan.id.clone(), clan);
+                        loaded += 1;
+                    }
+                    Err(e) => warn!(error = %e, key = %key, "deserialize clan failed"),
+                },
+                Ok(None) => {}
+                Err(e)   => warn!(error = %e, key = %key, "get clan failed"),
+            }
+        }
+        loaded
+    }
+
+    fn persist_clan_by_id(&self, id: &ClanId) {
+        if let Some(tx) = self.persist_tx.as_ref() {
+            let _ = tx.send(PersistOp::Save(id.clone()));
+        }
+    }
+
+    fn delete_persisted_clan(&self, id: &ClanId) {
+        if let Some(tx) = self.persist_tx.as_ref() {
+            let _ = tx.send(PersistOp::Delete(id.clone()));
         }
     }
 
@@ -60,6 +166,7 @@ impl ClanManager {
 
         self.client_to_clan.insert(owner_id, id.clone());
         self.clans.insert(id.clone(), clan);
+        self.persist_clan_by_id(&id);
         info!(clan_id = %id, name = %name, "clan created");
         Ok(id)
     }
@@ -95,6 +202,7 @@ impl ClanManager {
         clan.is_system = is_system;
         self.client_to_clan.insert(owner_id, id.clone());
         self.clans.insert(id.clone(), clan);
+        self.persist_clan_by_id(&id);
         info!(clan_id = %id, name = %name, is_system, "clan created with stable id");
         Ok(())
     }
@@ -102,14 +210,17 @@ impl ClanManager {
     /// Freeze or unfreeze a clan. Frozen clans reject new join requests;
     /// existing members remain.
     pub fn set_clan_frozen(&self, clan_id: &ClanId, frozen: bool) -> Result<()> {
-        let mut clan = self
-            .clans
-            .get_mut(clan_id)
-            .ok_or_else(|| Error::Plugin {
-                plugin_id: "io.draox.clans".to_string(),
-                message:   format!("clan not found: {clan_id}"),
-            })?;
-        clan.frozen = frozen;
+        {
+            let mut clan = self
+                .clans
+                .get_mut(clan_id)
+                .ok_or_else(|| Error::Plugin {
+                    plugin_id: "io.draox.clans".to_string(),
+                    message:   format!("clan not found: {clan_id}"),
+                })?;
+            clan.frozen = frozen;
+        }
+        self.persist_clan_by_id(clan_id);
         Ok(())
     }
 
@@ -126,6 +237,7 @@ impl ClanManager {
             self.client_to_clan.remove(&member.client_id);
         }
         self.clans.remove(clan_id);
+        self.delete_persisted_clan(clan_id);
 
         info!(clan_id = %clan_id, "clan deleted");
         Ok(())
@@ -185,8 +297,10 @@ impl ClanManager {
             role: ClanRole::Recruit,
             joined_at: Utc::now(),
         });
+        drop(clan);
 
         self.client_to_clan.insert(client_id.clone(), clan_id.clone());
+        self.persist_clan_by_id(clan_id);
         debug!(clan_id = %clan_id, client_id = %client_id, "member joined clan");
         Ok(())
     }
@@ -214,8 +328,10 @@ impl ClanManager {
                 message: "client is not a member of this clan".to_string(),
             });
         }
+        drop(clan);
 
         self.client_to_clan.remove(client_id);
+        self.persist_clan_by_id(clan_id);
         debug!(clan_id = %clan_id, client_id = %client_id, "member left clan");
         Ok(())
     }
@@ -263,6 +379,8 @@ impl ClanManager {
             })?;
 
         member.role = new_role;
+        drop(clan);
+        self.persist_clan_by_id(clan_id);
         debug!(clan_id = %clan_id, target = %target_id, role = ?new_role, "role updated");
         Ok(())
     }
@@ -316,6 +434,8 @@ impl ClanManager {
 
         // Update clan owner_id
         clan.owner_id = new_owner_id.clone();
+        drop(clan);
+        self.persist_clan_by_id(clan_id);
 
         info!(
             clan_id = %clan_id,
@@ -376,6 +496,7 @@ impl ClanManager {
 
         // Remove from client_to_clan map
         self.client_to_clan.remove(target_id);
+        self.persist_clan_by_id(clan_id);
 
         info!(clan_id = %clan_id, target = %target_id, kicked_by = %requester, "member kicked from clan");
         Ok(())
@@ -716,5 +837,81 @@ mod tests {
         assert_eq!(clan.icon_url, "");
         assert!(clan.tags.is_empty());
         assert!(clan.settings.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_clan_persists_and_reloads() {
+        use data_store::SqliteStorage;
+
+        let backend: Arc<dyn StorageBackend> = Arc::new(
+            SqliteStorage::new_in_memory().await.expect("sqlite memory"),
+        );
+
+        // First manager: create + mutate, then drop.
+        {
+            let mut mgr = ClanManager::new(50);
+            mgr.attach_storage(Arc::clone(&backend));
+            mgr.create_clan_with_id(
+                "clan_persist".to_string(),
+                "Persist".to_string(),
+                "PST".to_string(),
+                ClientId::from_str("cli_owner"),
+                true, // is_system
+            )
+            .unwrap();
+            mgr.join_clan(&"clan_persist".to_string(), ClientId::from_str("cli_alice"))
+                .unwrap();
+            mgr.set_clan_frozen(&"clan_persist".to_string(), true).unwrap();
+        }
+
+        // Let the fire-and-forget writes flush.
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        let mut fresh = ClanManager::new(50);
+        fresh.attach_storage(Arc::clone(&backend));
+        let loaded = fresh.load_from_storage().await;
+        assert_eq!(loaded, 1, "exactly one clan should be reloaded");
+
+        let clan = fresh.get_clan(&"clan_persist".to_string()).expect("reloaded clan");
+        assert_eq!(clan.name, "Persist");
+        assert_eq!(clan.tag, "PST");
+        assert!(clan.is_system, "is_system survived round-trip");
+        assert!(clan.frozen, "frozen survived round-trip");
+        assert_eq!(clan.member_count(), 2, "owner + alice");
+
+        // The client_to_clan index was rebuilt.
+        assert_eq!(
+            fresh.get_client_clan(&ClientId::from_str("cli_alice")),
+            Some("clan_persist".to_string())
+        );
+        assert_eq!(
+            fresh.get_client_clan(&ClientId::from_str("cli_owner")),
+            Some("clan_persist".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_clan_delete_purges_persisted_row() {
+        use data_store::SqliteStorage;
+
+        let backend: Arc<dyn StorageBackend> = Arc::new(
+            SqliteStorage::new_in_memory().await.expect("sqlite memory"),
+        );
+
+        let mut mgr = ClanManager::new(50);
+        mgr.attach_storage(Arc::clone(&backend));
+        let owner = ClientId::from_str("cli_owner");
+        let clan_id = mgr
+            .create_clan("Doomed".to_string(), "DOM".to_string(), owner.clone())
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        mgr.delete_clan(&clan_id, &owner).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        let mut fresh = ClanManager::new(50);
+        fresh.attach_storage(Arc::clone(&backend));
+        let loaded = fresh.load_from_storage().await;
+        assert_eq!(loaded, 0);
     }
 }

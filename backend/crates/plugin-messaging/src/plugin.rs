@@ -1,6 +1,7 @@
 use crate::http_api;
 use crate::store::MessageStore;
 use axum::Router;
+use data_store::StorageBackend;
 use plugin_sdk::context::EventBusHandle;
 use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth, WsActionContext};
 use plugin_sdk::PluginContext;
@@ -40,17 +41,32 @@ fn seed_system_draox(store: &Arc<MessageStore>) {
 ///
 /// Provides direct, channel, and broadcast messaging between clients.
 pub struct MessagingPlugin {
-    id:     PluginId,
-    store:  Option<Arc<MessageStore>>,
-    events: Option<Arc<dyn EventBusHandle>>,
+    id:      PluginId,
+    store:   Option<Arc<MessageStore>>,
+    events:  Option<Arc<dyn EventBusHandle>>,
+    storage: Option<Arc<dyn StorageBackend>>,
 }
 
 impl MessagingPlugin {
     pub fn new() -> Self {
         Self {
-            id:     PluginId::from_str(PLUGIN_ID),
-            store:  None,
-            events: None,
+            id:      PluginId::from_str(PLUGIN_ID),
+            store:   None,
+            events:  None,
+            storage: None,
+        }
+    }
+
+    /// Build a Messaging plugin that mirrors channel state through to
+    /// `storage`. On `activate()` the plugin first re-hydrates the
+    /// channel cache from `storage`, then runs the idempotent seed for
+    /// the system "Draox" channel.
+    pub fn with_storage(storage: Arc<dyn StorageBackend>) -> Self {
+        Self {
+            id:      PluginId::from_str(PLUGIN_ID),
+            store:   None,
+            events:  None,
+            storage: Some(storage),
         }
     }
 
@@ -84,8 +100,16 @@ impl Plugin for MessagingPlugin {
         Box::pin(async move {
             if self.store.is_none() {
                 let max_messages = 100_000;
-                self.store = Some(Arc::new(MessageStore::new(max_messages)));
-                info!("Messaging plugin activated (max messages: {max_messages})");
+                let mut store = MessageStore::new(max_messages);
+                if let Some(storage) = self.storage.as_ref() {
+                    store.attach_storage(Arc::clone(storage));
+                }
+                let store = Arc::new(store);
+                let loaded = store.load_from_storage().await;
+                info!(
+                    "Messaging plugin activated (max messages: {max_messages}, loaded {loaded} channels from storage)"
+                );
+                self.store = Some(store);
             }
             self.events = Some(events);
             if let Some(store) = self.store.as_ref() {
