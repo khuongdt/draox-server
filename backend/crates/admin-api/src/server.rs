@@ -38,6 +38,7 @@ impl AdminServer {
         seed_default_users(&state.auth_store).await;
 
         let router = build_router(state)
+            .await
             .layer(middleware::from_fn(trace_middleware))
             .layer(CorsLayer::permissive())
             .layer(TraceLayer::new_for_http());

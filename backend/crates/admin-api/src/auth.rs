@@ -1,4 +1,4 @@
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -6,6 +6,7 @@ use governor::clock::DefaultClock;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Quota, RateLimiter};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use plugin_sdk::Identity;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -240,6 +241,60 @@ pub async fn require_write(request: Request, next: Next) -> Response {
         axum::Json(serde_json::json!({"error": "not authenticated"})),
     )
         .into_response()
+}
+
+// ────────────────────────────────────────────────────────
+// Middleware: extract Identity from JWT and put it in request extensions
+// ────────────────────────────────────────────────────────
+
+/// Middleware that requires a valid `Authorization: Bearer <jwt>` header,
+/// validates it against the AppState's `JwtConfig`, and inserts a
+/// `plugin_sdk::Identity` into the request extensions.
+///
+/// Plugin route handlers then extract it with `Extension<Identity>`,
+/// without ever needing to depend on `admin-api` or know about
+/// `JwtConfig`. Used by `routes::build_router` to gate plugin-contributed
+/// routes.
+pub async fn auth_extract(
+    State(jwt_config): State<JwtConfig>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let Some(token) = request
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+    else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            axum::Json(serde_json::json!({
+                "success": false,
+                "error":   "Unauthorized",
+                "message": "missing Authorization header"
+            })),
+        )
+            .into_response();
+    };
+
+    let claims = match validate_jwt_token(token, &jwt_config) {
+        Ok(c) => c,
+        Err(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                axum::Json(serde_json::json!({
+                    "success": false,
+                    "error":   "Unauthorized",
+                    "message": "invalid or expired token"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let identity = Identity::new(claims.sub, format!("{:?}", claims.role).to_lowercase());
+    request.extensions_mut().insert(identity);
+    next.run(request).await
 }
 
 /// Require admin role.

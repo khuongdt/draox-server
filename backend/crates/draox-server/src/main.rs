@@ -115,6 +115,14 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Registered {} built-in plugins", plugin_registry.count());
 
+    // Activate built-in plugins so their HTTP routers, action handlers, and
+    // event subscriptions become live before the admin API starts serving.
+    for info in plugin_registry.list() {
+        if let Err(e) = plugin_registry.activate(&info.id).await {
+            tracing::warn!(plugin_id = %info.id, error = %e, "plugin activation failed");
+        }
+    }
+
     // Marketplace registry
     let marketplace = Arc::new(FullMarketplaceRegistry::new());
 

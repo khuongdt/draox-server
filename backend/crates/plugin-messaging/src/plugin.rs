@@ -1,4 +1,6 @@
+use crate::http_api;
 use crate::store::MessageStore;
+use axum::Router;
 use plugin_sdk::traits::{BoxFuture, Plugin, PluginHealth};
 use plugin_sdk::PluginContext;
 use server_core::{PluginId, Result};
@@ -50,9 +52,11 @@ impl Plugin for MessagingPlugin {
 
     fn activate(&mut self, _ctx: PluginContext) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
-            let max_messages = 100_000;
-            self.store = Some(Arc::new(MessageStore::new(max_messages)));
-            info!("Messaging plugin activated (max messages: {max_messages})");
+            if self.store.is_none() {
+                let max_messages = 100_000;
+                self.store = Some(Arc::new(MessageStore::new(max_messages)));
+                info!("Messaging plugin activated (max messages: {max_messages})");
+            }
             Ok(())
         })
     }
@@ -75,6 +79,15 @@ impl Plugin for MessagingPlugin {
                 }
             }
         })
+    }
+
+    fn http_router(&self) -> Option<Router> {
+        // Only contribute routes once the plugin has been activated and
+        // owns a store. Returning None before activation is safe — admin-api
+        // will simply skip this plugin until `activate()` populates the store.
+        self.store
+            .as_ref()
+            .map(|store| http_api::router(Arc::clone(store)))
     }
 }
 

@@ -254,6 +254,33 @@ impl MessageStore {
             .collect()
     }
 
+    /// Delete a single message from the store.
+    pub fn delete_message(&self, message_id: &MessageId) -> Result<()> {
+        self.messages
+            .remove(message_id)
+            .ok_or_else(|| Error::Plugin {
+                plugin_id: "io.draox.messaging".to_string(),
+                message: format!("message not found: {message_id}"),
+            })?;
+        Ok(())
+    }
+
+    /// Edit a message's text content. Marks the message as edited and
+    /// sets `edited_at` to the current time.
+    pub fn edit_message(&self, message_id: &MessageId, new_content: String) -> Result<Message> {
+        let mut msg = self
+            .messages
+            .get_mut(message_id)
+            .ok_or_else(|| Error::Plugin {
+                plugin_id: "io.draox.messaging".to_string(),
+                message: format!("message not found: {message_id}"),
+            })?;
+        msg.content = new_content;
+        msg.edited = true;
+        msg.edited_at = Some(chrono::Utc::now());
+        Ok(msg.clone())
+    }
+
     /// Delete a channel and its message index.
     pub fn delete_channel(&self, channel_id: &ChannelId) -> Result<()> {
         self.channels

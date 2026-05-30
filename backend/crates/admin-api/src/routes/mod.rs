@@ -14,12 +14,41 @@ pub mod sessions;
 pub mod users;
 pub mod ws_streams;
 
+use crate::auth::auth_extract;
 use crate::state::AppState;
+use axum::middleware;
 use axum::routing::{get, post, put};
 use axum::Router;
 
 /// Build the complete admin API router.
-pub fn build_router(state: AppState) -> Router {
+///
+/// Layout:
+/// 1. Hardcoded admin routes (operations / observability surface).
+/// 2. Plugin-contributed routes (collected from active plugins via
+///    `PluginRegistry::collect_http_routers`). These are wrapped in the
+///    `auth_extract` middleware so plugin handlers can rely on
+///    `Extension<Identity>` for the authenticated caller.
+///
+/// admin-api stays plugin-agnostic — there are no compile-time imports
+/// of any specific plugin crate.
+pub async fn build_router(state: AppState) -> Router {
+    let admin_router = build_admin_routes(state.clone());
+
+    let plugin_routers = state.plugin_registry.collect_http_routers().await;
+    let mut plugin_router = Router::new();
+    for r in plugin_routers {
+        plugin_router = plugin_router.merge(r);
+    }
+    let plugin_router = plugin_router.layer(middleware::from_fn_with_state(
+        state.jwt_config.clone(),
+        auth_extract,
+    ));
+
+    admin_router.merge(plugin_router)
+}
+
+/// Hardcoded admin / observability routes, separated for readability.
+fn build_admin_routes(state: AppState) -> Router {
     Router::new()
         // Auth
         .route("/api/auth/login", post(auth::login))

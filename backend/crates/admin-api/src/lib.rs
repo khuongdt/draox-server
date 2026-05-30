@@ -94,6 +94,7 @@ mod tests {
         let metrics = Arc::new(MetricsCollector::new());
         let usage_tracker = Arc::new(UsageTracker::new());
 
+        let config = server_config::DraoxConfig::default();
         AppState {
             connection_tracker: tracker,
             session_manager: session_mgr,
@@ -110,13 +111,15 @@ mod tests {
             storage,
             jwt_config: JwtConfig::default(),
             auth_store,
+            config: Arc::new(std::sync::RwLock::new(config)),
+            config_path: String::new(),
         }
     }
 
     #[tokio::test]
     async fn test_health_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -140,7 +143,7 @@ mod tests {
     #[tokio::test]
     async fn test_info_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -163,7 +166,7 @@ mod tests {
     #[tokio::test]
     async fn test_connections_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -186,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn test_sessions_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -209,7 +212,7 @@ mod tests {
     #[tokio::test]
     async fn test_plugins_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -232,7 +235,7 @@ mod tests {
     #[tokio::test]
     async fn test_guard_stats_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -261,7 +264,7 @@ mod tests {
         state.metrics.record_bytes_received(1024);
         state.metrics.increment_requests();
 
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -286,7 +289,7 @@ mod tests {
     #[tokio::test]
     async fn test_connection_not_found() {
         let state = make_state().await;
-        let app = routes::build_router(state);
+        let app = routes::build_router(state).await;
 
         let response = app
             .oneshot(
@@ -306,7 +309,7 @@ mod tests {
         let state = make_state().await;
 
         // Ban
-        let app = routes::build_router(state.clone());
+        let app = routes::build_router(state.clone()).await;
         let response = app
             .oneshot(
                 Request::builder()
@@ -324,7 +327,7 @@ mod tests {
         assert_eq!(state.traffic_guard.ban_manager().active_ban_count(), 1);
 
         // Unban
-        let app = routes::build_router(state.clone());
+        let app = routes::build_router(state.clone()).await;
         let response = app
             .oneshot(
                 Request::builder()

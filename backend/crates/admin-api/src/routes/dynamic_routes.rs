@@ -167,6 +167,7 @@ mod tests {
         let usage_tracker = Arc::new(UsageTracker::new());
         let marketplace = Arc::new(FullMarketplaceRegistry::new());
         let route_registry = Arc::new(RouteRegistry::new());
+        let config = server_config::DraoxConfig::default();
         AppState {
             connection_tracker: tracker,
             session_manager: session_mgr,
@@ -183,13 +184,15 @@ mod tests {
             storage,
             jwt_config: JwtConfig::default(),
             auth_store,
+            config: Arc::new(std::sync::RwLock::new(config)),
+            config_path: String::new(),
         }
     }
 
     #[tokio::test]
     async fn test_list_routes_empty() {
         let state = make_state().await;
-        let app = build_router(state);
+        let app = build_router(state).await;
 
         let resp = app
             .oneshot(
@@ -228,7 +231,7 @@ mod tests {
             )
             .unwrap();
 
-        let app = build_router(state);
+        let app = build_router(state).await;
 
         let resp = app
             .oneshot(
@@ -251,7 +254,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_route_via_api() {
         let state = make_state().await;
-        let app = build_router(state);
+        let app = build_router(state).await;
 
         let body = serde_json::json!({
             "method": "POST",

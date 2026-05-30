@@ -1,4 +1,5 @@
 use crate::context::PluginContext;
+use axum::Router;
 use server_core::{PluginId, Result};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -39,6 +40,19 @@ pub trait Plugin: Send + Sync + 'static {
     /// Health check. Called periodically by plugin-host.
     fn health_check(&self) -> BoxFuture<'_, PluginHealth> {
         Box::pin(async { PluginHealth::Healthy })
+    }
+
+    /// Optional: contribute REST endpoints to the admin API HTTP server.
+    ///
+    /// Plugins that expose an HTTP surface return `Some(router)` where the
+    /// router has its own internal state already baked in via
+    /// `.with_state(...)`. `admin-api::build_router` merges these via
+    /// `axum::Router::merge`, keeping admin-api free of plugin-specific
+    /// imports.
+    ///
+    /// Default returns `None` — plugins without a REST API don't override.
+    fn http_router(&self) -> Option<Router> {
+        None
     }
 }
 

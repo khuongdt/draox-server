@@ -1,5 +1,6 @@
 use crate::context_builder::ContextBuilder;
 use crate::lifecycle::validate_transition;
+use axum::Router;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use plugin_sdk::traits::{Plugin, PluginHealth, PluginState};
@@ -417,6 +418,36 @@ impl PluginRegistry {
     /// Number of registered plugins.
     pub fn count(&self) -> usize {
         self.plugins.len()
+    }
+
+    /// Collect HTTP routers contributed by every active plugin.
+    ///
+    /// Walks the registry, locks each active plugin briefly, and calls
+    /// `Plugin::http_router`. Plugins that return `None` (the default)
+    /// are skipped. The returned routers are ready to be `merge`d into
+    /// the admin-api Axum router — admin-api therefore needs no compile-
+    /// time knowledge of any specific plugin crate.
+    pub async fn collect_http_routers(&self) -> Vec<Router> {
+        // Snapshot active plugin IDs first to avoid holding DashMap shard
+        // locks across an `.await`.
+        let active_ids: Vec<PluginId> = self
+            .plugins
+            .iter()
+            .filter(|e| e.state.is_active())
+            .map(|e| e.key().clone())
+            .collect();
+
+        let mut routers = Vec::new();
+        for id in active_ids {
+            if let Some(entry) = self.plugins.get(&id) {
+                let plugin = entry.plugin.lock().await;
+                if let Some(router) = plugin.http_router() {
+                    debug!(plugin_id = %id, "collected HTTP router");
+                    routers.push(router);
+                }
+            }
+        }
+        routers
     }
 
     /// Deactivate all active plugins (for graceful shutdown).
