@@ -1,4 +1,5 @@
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import { Tag, DatePicker, message } from 'antd';
 import { useState, useEffect } from 'react';
 import { getAuditLogs } from '@/services/audit';
@@ -31,41 +32,41 @@ export default function AuditPage() {
     refresh();
   }, [page, severityFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const columns = [
+  const columns: ProColumns<API.AuditEntry>[] = [
     {
       title: 'ID',
       dataIndex: 'id',
       width: 130,
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#a0a0b0', fontSize: 12 }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#a0a0b0', fontSize: 12 }}>{record.id}</span>
       ),
     },
     {
       title: 'Timestamp',
       dataIndex: 'timestamp',
       width: 170,
-      sorter: (a: API.AuditEntry, b: API.AuditEntry) =>
+      sorter: (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-      render: (v: string) => (
-        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(v).toLocaleString()}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(record.timestamp).toLocaleString()}</span>
       ),
     },
     {
       title: 'Action',
       dataIndex: 'action',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#ff8c42' }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#ff8c42' }}>{record.action}</span>
       ),
     },
     {
       title: 'Actor',
       dataIndex: 'actor',
-      render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span>,
+      render: (_dom, record) => <span style={{ color: '#e0e0e0' }}>{record.actor}</span>,
     },
     {
       title: 'Target',
       dataIndex: 'target',
-      render: (v: string) => <span style={{ color: '#a0a0b0' }}>{v}</span>,
+      render: (_dom, record) => <span style={{ color: '#a0a0b0' }}>{record.target}</span>,
     },
     {
       title: 'Severity',
@@ -77,10 +78,9 @@ export default function AuditPage() {
         { text: 'Medium', value: 'medium' },
         { text: 'Low', value: 'low' },
       ],
-      onFilter: (value: boolean | React.Key, record: API.AuditEntry) =>
-        record.severity === value,
-      render: (v: string) => {
-        const s = SEVERITY_STYLE[v] ?? { color: '#a0a0b0', bg: '#2a2a4a' };
+      onFilter: (value, record) => record.severity === value,
+      render: (_dom, record) => {
+        const s = SEVERITY_STYLE[record.severity] ?? { color: '#a0a0b0', bg: '#2a2a4a' };
         return (
           <Tag
             style={{
@@ -92,7 +92,7 @@ export default function AuditPage() {
               fontSize: 11,
             }}
           >
-            {v}
+            {record.severity}
           </Tag>
         );
       },

@@ -34,24 +34,27 @@ export default function MetricsPage() {
   }, [addSnapshot]);
 
   // ── Derived chart data from ring buffer ───────────────────────────────────────
-  const validSnapshots = snapshots?.filter((s) => s && s.timestamp) || [];
+  const validSnapshots: API.MetricsSnapshot[] =
+    (snapshots as API.MetricsSnapshot[] | undefined)?.filter(
+      (s: API.MetricsSnapshot) => s && s.timestamp,
+    ) ?? [];
 
-  const connOverTime = validSnapshots.map((s) => ({
+  const connOverTime = validSnapshots.map((s: API.MetricsSnapshot) => ({
     time: new Date(s.timestamp).toLocaleTimeString(),
     value: s.connections_active,
   }));
 
   const oneHourAgo = Date.now() - 3600_000;
   const bwData = validSnapshots
-    .filter((s) => new Date(s.timestamp).getTime() >= oneHourAgo)
-    .map((s) => ({
+    .filter((s: API.MetricsSnapshot) => new Date(s.timestamp).getTime() >= oneHourAgo)
+    .map((s: API.MetricsSnapshot) => ({
       timestamp: s.timestamp,
       bytes_sent: s.bytes_sent,
       bytes_received: s.bytes_received,
     }));
 
   // Requests vs Errors — last 12 snapshots as grouped bar
-  const reqErrData = validSnapshots.slice(-12).flatMap((s) => [
+  const reqErrData = validSnapshots.slice(-12).flatMap((s: API.MetricsSnapshot) => [
     {
       interval: new Date(s.timestamp).toLocaleTimeString(),
       count: s.requests_total,
@@ -65,7 +68,7 @@ export default function MetricsPage() {
   ]);
 
   // Error rate line — last 30 snapshots
-  const errRateData = validSnapshots.map((s) => ({
+  const errRateData = validSnapshots.map((s: API.MetricsSnapshot) => ({
     time: new Date(s.timestamp).toLocaleTimeString(),
     value: s.requests_total > 0 ? s.errors_total / s.requests_total : 0,
   }));

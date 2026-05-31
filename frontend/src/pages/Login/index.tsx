@@ -21,7 +21,7 @@ export default function LoginPage() {
       localStorage.setItem('draox_role', result.role);
       // Update initialState immediately so access.ts gets the correct role
       // without requiring a full page reload
-      await setInitialState((prev) => ({
+      await setInitialState((prev: { currentUser?: API.CurrentUser; [k: string]: unknown } | undefined) => ({
         ...prev,
         currentUser: {
           token:    result.token,

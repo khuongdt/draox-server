@@ -1,5 +1,6 @@
 import { useModel } from '@umijs/max';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import {
   Button,
   Form,
@@ -111,28 +112,28 @@ export default function UsersPage() {
     refresh();
   };
 
-  const columns = [
+  const columns: ProColumns<API.AdminUser>[] = [
     {
       title: 'Username',
       dataIndex: 'username',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#e0e0e0' }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#e0e0e0' }}>{record.username}</span>
       ),
     },
     {
       title: 'Role',
       dataIndex: 'role',
-      render: (v: API.AdminRole) => (
-        <Tag color={ROLE_COLOR[v]} style={{ fontWeight: 600 }}>
-          {v.toUpperCase()}
+      render: (_dom, record) => (
+        <Tag color={ROLE_COLOR[record.role]} style={{ fontWeight: 600 }}>
+          {record.role.toUpperCase()}
         </Tag>
       ),
     },
     {
       title: 'Status',
       dataIndex: 'banned',
-      render: (banned: boolean) =>
-        banned ? (
+      render: (_dom, record) =>
+        record.banned ? (
           <Tag color="red">BANNED</Tag>
         ) : (
           <Tag color="green">ACTIVE</Tag>
@@ -141,7 +142,7 @@ export default function UsersPage() {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: unknown, record: API.AdminUser) => (
+      render: (_dom, record) => (
         <Space>
           <Button size="small" onClick={() => openEdit(record)}>
             Edit

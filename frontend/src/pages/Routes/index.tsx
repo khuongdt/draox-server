@@ -1,10 +1,11 @@
-import { useRequest, useAccess } from '@umijs/max';
+import { useAccess } from '@umijs/max';
 import {
   PageContainer, ProTable, ProForm, ProFormText, ProFormSelect,
 } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import { Tag, Button, Space, Popconfirm, Modal, message, Spin, Empty } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { listRoutes, registerRoute, deleteRoute } from '@/services/routes';
 
 const METHOD_COLORS: Record<string, string> = {
@@ -22,65 +23,73 @@ const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'
 export default function RoutesPage() {
   const access = useAccess();
   const [modalVisible, setModalVisible] = useState(false);
+  const [routes, setRoutes] = useState<API.DynamicRoute[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [registering, setRegistering] = useState(false);
 
-  const { data: routes = [], loading, refresh } = useRequest(listRoutes, {
-    refreshOnWindowFocus: false,
-    pollingInterval: 30_000,
-  });
+  const refresh = useCallback(() => {
+    setLoading(true);
+    listRoutes()
+      .then((data) => setRoutes(data))
+      .catch((e: Error) => message.error(`Failed to load routes: ${e.message}`))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const { loading: registering, run: runRegister } = useRequest(
-    (pluginId: string, path: string, methods: string[]) =>
-      registerRoute(pluginId, path, methods),
-    {
-      manual: true,
-      onSuccess: () => {
-        setModalVisible(false);
-        message.success('Route registered');
-        refresh();
-      },
-    },
-  );
-
-  const { run: runDelete } = useRequest(
-    (pluginId: string) => deleteRoute(pluginId),
-    {
-      manual: true,
-      onSuccess: () => {
-        message.success('Route deleted');
-        refresh();
-      },
-    },
-  );
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 30_000);
+    return () => clearInterval(t);
+  }, [refresh]);
 
   const handleRegister = async (values: {
     plugin_id: string;
     path_pattern: string;
     methods: string[];
   }) => {
-    await runRegister(values.plugin_id, values.path_pattern, values.methods);
+    setRegistering(true);
+    try {
+      await registerRoute(values.plugin_id, values.path_pattern, values.methods);
+      setModalVisible(false);
+      message.success('Route registered');
+      refresh();
+    } catch (e) {
+      message.error(`Failed to register: ${(e as Error).message}`);
+    } finally {
+      setRegistering(false);
+    }
   };
 
-  const columns = [
+  const runDelete = async (pluginId: string) => {
+    try {
+      await deleteRoute(pluginId);
+      message.success('Route deleted');
+      refresh();
+    } catch (e) {
+      message.error(`Failed to delete: ${(e as Error).message}`);
+    }
+  };
+
+  const columns: ProColumns<API.DynamicRoute>[] = [
     {
       title: 'Plugin ID',
       dataIndex: 'plugin_id',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#a0a0b0', fontSize: 12 }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#a0a0b0', fontSize: 12 }}>{record.plugin_id}</span>
       ),
     },
     {
       title: 'Path',
       dataIndex: 'path',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#ff8c42' }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#ff8c42' }}>{record.path}</span>
       ),
     },
     {
       title: 'Methods',
       dataIndex: 'methods',
-      render: (methods: string[]) => (
+      render: (_dom, record) => (
         <Space size={4} wrap>
-          {(methods ?? []).map((m) => (
+          {(record.methods ?? []).map((m) => (
             <Tag
               key={m}
               style={{
@@ -100,17 +109,17 @@ export default function RoutesPage() {
     {
       title: 'Created At',
       dataIndex: 'created_at',
-      render: (v: string) => (
-        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(v).toLocaleString()}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(record.created_at).toLocaleString()}</span>
       ),
     },
     ...(access?.canRouteManage
-      ? [
+      ? ([
           {
             title: 'Actions',
             key: 'actions',
             width: 90,
-            render: (_: unknown, record: API.DynamicRoute) => (
+            render: (_dom, record) => (
               <Popconfirm
                 title="Delete all routes for this plugin?"
                 description="Plugin will no longer serve routes registered at this path."
@@ -123,8 +132,8 @@ export default function RoutesPage() {
                 </Button>
               </Popconfirm>
             ),
-          },
-        ]
+          } as ProColumns<API.DynamicRoute>,
+        ])
       : []),
   ];
 
@@ -172,8 +181,8 @@ export default function RoutesPage() {
         title={<span style={{ color: '#e0e0e0' }}>Register Plugin Route</span>}
         onCancel={() => setModalVisible(false)}
         footer={null}
+        style={{ background: '#16213e', border: '1px solid #2a2a4a' }}
         styles={{
-          content: { background: '#16213e', border: '1px solid #2a2a4a' },
           header: { background: '#16213e', borderBottom: '1px solid #2a2a4a' },
         }}
       >

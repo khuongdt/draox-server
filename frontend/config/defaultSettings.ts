@@ -52,7 +52,7 @@ const defaultSettings: ProLayoutProps & {
       paddingInlinePageContainerContent: 24,
       paddingBlockPageContainerContent: 24,
       colorBgPageContainer: '#1a1a2e',
-      colorBgPageContainerChildren: '#16213e',
+      colorBgPageContainerFixed: '#16213e',
     },
     // Global layout tokens
     bgLayout: '#1a1a2e',

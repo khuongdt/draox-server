@@ -55,18 +55,18 @@ export default function DashboardPage() {
   }, [addSnapshot, addEvent]);
 
   // ── Derived chart data from ring buffer ──────────────────────────────────────
-  const connOverTime = snapshots
-    .filter((s) => s != null && s.timestamp != null)
-    .map((s) => ({
+  const connOverTime = (snapshots as API.MetricsSnapshot[])
+    .filter((s: API.MetricsSnapshot) => s != null && s.timestamp != null)
+    .map((s: API.MetricsSnapshot) => ({
       time: new Date(s.timestamp).toLocaleTimeString(),
       value: s.connections_active ?? 0,
     }));
 
   const oneHourAgo = Date.now() - 3600_000;
-  const bwData = snapshots
-    .filter((s) => s != null && s.timestamp != null)
-    .filter((s) => new Date(s.timestamp!).getTime() >= oneHourAgo)
-    .map((s) => ({
+  const bwData = (snapshots as API.MetricsSnapshot[])
+    .filter((s: API.MetricsSnapshot) => s != null && s.timestamp != null)
+    .filter((s: API.MetricsSnapshot) => new Date(s.timestamp!).getTime() >= oneHourAgo)
+    .map((s: API.MetricsSnapshot) => ({
       timestamp: s.timestamp,
       bytes_sent: s.bytes_sent ?? 0,
       bytes_received: s.bytes_received ?? 0,

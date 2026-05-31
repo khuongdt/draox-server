@@ -29,7 +29,7 @@ export default function EventStreamPage() {
   // ── Filter displayed events by selected categories ────────────────────────────
   const displayedEvents = enabledCategories.length === ALL_CATEGORIES.length
     ? events
-    : events.filter((e) => enabledCategories.includes(e.category));
+    : events.filter((e: API.ServerEvent) => enabledCategories.includes(e.category));
 
   return (
     <PageContainer title="Event Stream" subTitle="Real-time server event feed">

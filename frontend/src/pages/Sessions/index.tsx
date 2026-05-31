@@ -1,6 +1,7 @@
-import { useRequest } from '@umijs/max';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import { Badge, Button, Space, Popconfirm, message, Spin, Row, Col } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import DarkStatisticCard from '@/components/DarkStatisticCard';
 import { listSessions, destroySession, drainSession } from '@/services/sessions';
 
@@ -11,10 +12,22 @@ const STATE_STATUS: Record<string, 'success' | 'processing' | 'default'> = {
 };
 
 export default function SessionsPage() {
-  const { data: sessions = [], loading, refresh } = useRequest(listSessions, {
-    refreshOnWindowFocus: false,
-    pollingInterval: 10_000,
-  });
+  const [sessions, setSessions] = useState<API.Session[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    listSessions()
+      .then((data) => setSessions(data))
+      .catch((e: Error) => message.error(`Failed to load sessions: ${e.message}`))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 10_000);
+    return () => clearInterval(t);
+  }, [refresh]);
 
   const handleDestroy = async (id: string) => {
     await destroySession(id);
@@ -28,51 +41,51 @@ export default function SessionsPage() {
     refresh();
   };
 
-  const activeCount = sessions.filter((s: API.Session) => s.state === 'active').length;
+  const activeCount = sessions.filter((s) => s.state === 'active').length;
 
-  const columns = [
+  const columns: ProColumns<API.Session>[] = [
     {
       title: 'Session ID',
       dataIndex: 'id',
-      render: (v: string) => (
+      render: (_dom, record) => (
         <span style={{ fontFamily: 'monospace', color: '#e0e0e0', fontSize: 12 }}>
-          {v.slice(0, 20)}…
+          {record.id.slice(0, 20)}…
         </span>
       ),
     },
     {
       title: 'Client ID',
       dataIndex: 'client_id',
-      render: (v: string) => <span style={{ color: '#a0a0b0' }}>{v}</span>,
+      render: (_dom, record) => <span style={{ color: '#a0a0b0' }}>{record.client_id}</span>,
     },
     {
       title: 'Connections',
       dataIndex: 'connections',
-      render: (v: string[]) => (
-        <span style={{ color: '#ff8c42', fontWeight: 700 }}>{v?.length ?? 0}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#ff8c42', fontWeight: 700 }}>{record.connections?.length ?? 0}</span>
       ),
     },
     {
       title: 'Created At',
       dataIndex: 'created_at',
-      render: (v: string) => (
-        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(v).toLocaleString()}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(record.created_at).toLocaleString()}</span>
       ),
     },
     {
       title: 'State',
       dataIndex: 'state',
-      render: (v: string) => (
+      render: (_dom, record) => (
         <Badge
-          status={STATE_STATUS[v] ?? 'default'}
-          text={<span style={{ color: '#e0e0e0' }}>{v}</span>}
+          status={STATE_STATUS[record.state] ?? 'default'}
+          text={<span style={{ color: '#e0e0e0' }}>{record.state}</span>}
         />
       ),
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: unknown, record: API.Session) => (
+      render: (_dom, record) => (
         <Space>
           <Popconfirm
             title="Drain this session?"

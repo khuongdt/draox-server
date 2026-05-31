@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRequest } from '@umijs/max';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import { Tabs, Row, Col, Card, Input, Button, Form, Space, message, Spin } from 'antd';
 import DarkStatisticCard from '@/components/DarkStatisticCard';
 import SearchableIPTable from '@/components/SearchableIPTable';
@@ -21,7 +22,6 @@ const IPV6_PATTERN = /^([0-9a-fA-F:]+)(\/\d{1,3})?$/;
 
 export default function TrafficGuardPage() {
   const [banForm] = Form.useForm();
-  const [wlInput, setWlInput] = Form.useWatch ? ['', () => {}] : ['', () => {}];
 
   // ── HTTP data ────────────────────────────────────────────────────────────────
   const { data: guardStats, refresh: refreshStats } = useRequest(getGuardStats, {
@@ -29,11 +29,16 @@ export default function TrafficGuardPage() {
     pollingInterval: 15_000,
   });
 
-  const {
-    data: banData,
-    loading: bansLoading,
-    refresh: refreshBans,
-  } = useRequest(listBans, { refreshOnWindowFocus: false });
+  const [banData, setBanData] = useState<{ bans?: API.BanEntry[] } | undefined>();
+  const [bansLoading, setBansLoading] = useState(false);
+  const refreshBans = useCallback(() => {
+    setBansLoading(true);
+    listBans()
+      .then((data) => setBanData(data))
+      .catch((e: Error) => message.error(`Failed to load bans: ${e.message}`))
+      .finally(() => setBansLoading(false));
+  }, []);
+  useEffect(() => { refreshBans(); }, [refreshBans]);
 
   // ── /ws/guard — auto-refresh stats + bans on guard events ────────────────────
   useEffect(() => {
@@ -76,37 +81,37 @@ export default function TrafficGuardPage() {
     refreshStats();
   };
 
-  const banColumns = [
+  const banColumns: ProColumns<API.BanEntry>[] = [
     {
       title: 'IP',
       dataIndex: 'ip',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#e0e0e0' }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#e0e0e0' }}>{record.ip}</span>
       ),
     },
     {
       title: 'Reason',
       dataIndex: 'reason',
-      render: (v: string) => <span style={{ color: '#a0a0b0' }}>{v}</span>,
+      render: (_dom, record) => <span style={{ color: '#a0a0b0' }}>{record.reason}</span>,
     },
     {
       title: 'Expires',
       dataIndex: 'expires_at',
-      render: (v: string) => (
-        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(v).toLocaleString()}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#a0a0b0', fontSize: 12 }}>{new Date(record.expires_at).toLocaleString()}</span>
       ),
     },
     {
       title: 'Count',
       dataIndex: 'ban_count',
-      render: (v: number) => (
-        <span style={{ color: '#d32f2f', fontWeight: 700 }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#d32f2f', fontWeight: 700 }}>{record.ban_count}</span>
       ),
     },
     {
       title: 'Action',
       key: 'action',
-      render: (_: unknown, record: API.BanEntry) => (
+      render: (_dom, record) => (
         <Button size="small" onClick={() => handleUnban(record.ip)}>
           Unban
         </Button>

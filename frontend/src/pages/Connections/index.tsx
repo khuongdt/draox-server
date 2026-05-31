@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react';
-import { useRequest } from '@umijs/max';
+import { useEffect, useState, useCallback } from 'react';
 import { PageContainer } from '@ant-design/pro-components';
 import { Row, Col, message, Spin } from 'antd';
 import DarkStatisticCard from '@/components/DarkStatisticCard';
@@ -7,25 +6,31 @@ import ConnectionTable from '@/components/ConnectionTable';
 import ConfirmActionModal from '@/components/ConfirmActionModal';
 import { listConnections, disconnectConnection, getConnectionStats } from '@/services/connections';
 import { wsManager } from '@/services/wsManager';
-import { useState } from 'react';
 
 export default function ConnectionsPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedId, setSelectedId] = useState('');
+  const [connections, setConnections] = useState<API.Connection[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<API.ConnectionStats | undefined>(undefined);
 
   // ── HTTP data ────────────────────────────────────────────────────────────────
-  const {
-    data: connections = [],
-    loading,
-    refresh,
-  } = useRequest(listConnections, { refreshOnWindowFocus: false });
+  const refresh = useCallback(() => {
+    setLoading(true);
+    Promise.all([listConnections(), getConnectionStats()])
+      .then(([list, st]) => {
+        setConnections(list);
+        setStats(st);
+      })
+      .catch((e: Error) => message.error(`Failed to load: ${e.message}`))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const { data: stats } = useRequest(getConnectionStats, { refreshOnWindowFocus: false });
+  useEffect(() => { refresh(); }, [refresh]);
 
   // ── WebSocket /ws/connections — auto-refresh on state changes ─────────────────
   useEffect(() => {
     const unsub = wsManager.subscribe('connections', () => {
-      // Debounce: refresh at most once per 2 s to avoid hammering the API
       refresh();
     });
     return unsub;
@@ -46,7 +51,7 @@ export default function ConnectionsPage() {
 
   const activeCount =
     stats?.active ??
-    connections.filter((c: API.Connection) => c.state === 'established').length;
+    connections.filter((c) => c.state === 'established').length;
 
   return (
     <PageContainer title="Connections" subTitle="Manage active client connections">
@@ -77,7 +82,7 @@ export default function ConnectionsPage() {
 
       <Spin spinning={loading}>
         <ConnectionTable
-          dataSource={connections.map((c: API.Connection) => ({
+          dataSource={connections.map((c) => ({
             id: c.id,
             remote_address: c.remote_addr,
             protocol: c.protocol as 'tcp' | 'udp' | 'ws' | 'http',

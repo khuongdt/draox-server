@@ -1,4 +1,5 @@
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import {
   Button,
   Form,
@@ -89,19 +90,19 @@ export default function ClansChannelsPage() {
     refresh();
   };
 
-  const channelColumns = [
+  const channelColumns: ProColumns<API.Channel>[] = [
     {
       title: 'Name',
       dataIndex: 'name',
-      render: (v: string, r: API.Channel) => (
+      render: (_dom, r) => (
         <Space>
-          <span style={{ fontWeight: 600 }}>{v}</span>
+          <span style={{ fontWeight: 600 }}>{r.name}</span>
           <span style={{ color: '#888', fontFamily: 'monospace', fontSize: 12 }}>#{r.id}</span>
         </Space>
       ),
     },
-    { title: 'Type',  dataIndex: 'channel_type', render: (v: string) => <Tag>{v}</Tag> },
-    { title: 'Owner', dataIndex: 'created_by',   render: (v: string) => <code>{v}</code> },
+    { title: 'Type',  dataIndex: 'channel_type', render: (_dom, r) => <Tag>{r.channel_type}</Tag> },
+    { title: 'Owner', dataIndex: 'created_by',   render: (_dom, r) => <code>{r.created_by}</code> },
     {
       title: 'Members',
       dataIndex: 'member_count',
@@ -111,7 +112,7 @@ export default function ClansChannelsPage() {
     {
       title: 'Status',
       key: 'status',
-      render: (_: unknown, r: API.Channel) => (
+      render: (_dom, r) => (
         <Space>
           {r.is_system && <Tag color="orange">SYSTEM</Tag>}
           {r.frozen && <Tag color="red">FROZEN</Tag>}
@@ -122,12 +123,12 @@ export default function ClansChannelsPage() {
     {
       title: 'Created',
       dataIndex: 'created_at',
-      render: (v: string) => <span style={{ color: '#888' }}>{new Date(v).toLocaleString()}</span>,
+      render: (_dom, r) => <span style={{ color: '#888' }}>{new Date(r.created_at).toLocaleString()}</span>,
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: unknown, r: API.Channel) => (
+      render: (_dom, r) => (
         <Space>
           <Popconfirm
             title={r.frozen ? `Unfreeze '${r.name}'?` : `Freeze '${r.name}'?`}
@@ -165,29 +166,29 @@ export default function ClansChannelsPage() {
     refresh();
   };
 
-  const clanColumns = [
+  const clanColumns: ProColumns<API.Clan>[] = [
     {
       title: 'Name',
       dataIndex: 'name',
-      render: (v: string, r: API.Clan) => (
+      render: (_dom, r) => (
         <Space>
-          <span style={{ fontWeight: 600 }}>{v}</span>
+          <span style={{ fontWeight: 600 }}>{r.name}</span>
           <Tag color="blue">{r.tag}</Tag>
         </Space>
       ),
     },
-    { title: 'Owner', dataIndex: 'owner_id', render: (v: string) => <code>{v}</code> },
+    { title: 'Owner', dataIndex: 'owner_id', render: (_dom, r) => <code>{r.owner_id}</code> },
     {
       title: 'Members',
       key: 'members',
       align: 'center' as const,
       width: 110,
-      render: (_: unknown, r: API.Clan) => `${r.member_count}/${r.max_members}`,
+      render: (_dom, r) => `${r.member_count}/${r.max_members}`,
     },
     {
       title: 'Status',
       key: 'status',
-      render: (_: unknown, r: API.Clan) => (
+      render: (_dom, r) => (
         <Space>
           {r.is_system && <Tag color="orange">SYSTEM</Tag>}
           {r.frozen && <Tag color="red">FROZEN</Tag>}
@@ -198,12 +199,12 @@ export default function ClansChannelsPage() {
     {
       title: 'Created',
       dataIndex: 'created_at',
-      render: (v: string) => <span style={{ color: '#888' }}>{new Date(v).toLocaleString()}</span>,
+      render: (_dom, r) => <span style={{ color: '#888' }}>{new Date(r.created_at).toLocaleString()}</span>,
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: unknown, r: API.Clan) => (
+      render: (_dom, r) => (
         <Space>
           <Popconfirm
             title={r.frozen ? `Unfreeze '${r.name}'?` : `Freeze '${r.name}'?`}

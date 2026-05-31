@@ -130,7 +130,7 @@ export default function CachePage() {
         description="All cached data (Redis + in-memory) will be purged. Applications will temporarily serve uncached data, causing higher database load."
         type="danger"
         confirmText="Flush Cache"
-        onConfirm={() => runFlush()}
+        onConfirm={async () => { await runFlush(); }}
         onCancel={() => setFlushVisible(false)}
       />
     </PageContainer>

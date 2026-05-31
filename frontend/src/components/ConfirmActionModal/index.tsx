@@ -56,12 +56,12 @@ const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
         danger: isDanger,
         style: isDanger ? {} : { background: '#f5a623', borderColor: '#f5a623', color: '#000' },
       }}
+      style={{
+        background: '#16213e',
+        border: `1px solid ${borderColor}`,
+        borderRadius: 8,
+      }}
       styles={{
-        content: {
-          background: '#16213e',
-          border: `1px solid ${borderColor}`,
-          borderRadius: 8,
-        },
         header: { background: '#16213e', borderBottom: '1px solid #2a2a4a' },
         footer: { background: '#16213e', borderTop: '1px solid #2a2a4a' },
         mask: { background: 'rgba(0,0,0,0.6)' },

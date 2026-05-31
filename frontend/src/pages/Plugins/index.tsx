@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import { Tag, Dropdown, Button, message, Spin, Row, Col } from 'antd';
 import { MoreOutlined, ReloadOutlined } from '@ant-design/icons';
 import PluginStatusBadge from '@/components/PluginStatusBadge';
@@ -73,33 +74,33 @@ export default function PluginsPage() {
     (p: API.Plugin) => p.state === 'ActiveEnabled',
   ).length;
 
-  const columns = [
+  const columns: ProColumns<API.Plugin>[] = [
     {
       title: 'Name',
       dataIndex: 'name',
-      render: (v: string) => (
-        <span style={{ color: '#e0e0e0', fontWeight: 600 }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ color: '#e0e0e0', fontWeight: 600 }}>{record.name}</span>
       ),
     },
     {
       title: 'Plugin ID',
       dataIndex: 'id',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', color: '#a0a0b0', fontSize: 12 }}>{v}</span>
+      render: (_dom, record) => (
+        <span style={{ fontFamily: 'monospace', color: '#a0a0b0', fontSize: 12 }}>{record.id}</span>
       ),
     },
     {
       title: 'Version',
       dataIndex: 'version',
       width: 90,
-      render: (v: string) => <span style={{ color: '#a0a0b0' }}>v{v}</span>,
+      render: (_dom, record) => <span style={{ color: '#a0a0b0' }}>v{record.version}</span>,
     },
     {
       title: 'Type',
       dataIndex: 'plugin_type',
       width: 90,
-      render: (v: string) => {
-        const s = TYPE_STYLE[v] ?? TYPE_STYLE['builtin'];
+      render: (_dom, record) => {
+        const s = TYPE_STYLE[record.plugin_type] ?? TYPE_STYLE['builtin'];
         return (
           <Tag
             style={{
@@ -111,7 +112,7 @@ export default function PluginsPage() {
               fontSize: 11,
             }}
           >
-            {v}
+            {record.plugin_type}
           </Tag>
         );
       },
@@ -120,13 +121,13 @@ export default function PluginsPage() {
       title: 'Status',
       dataIndex: 'state',
       width: 160,
-      render: (v: API.PluginState) => <PluginStatusBadge state={v} />,
+      render: (_dom, record) => <PluginStatusBadge state={record.state} />,
     },
     {
       title: 'Actions',
       key: 'actions',
       width: 80,
-      render: (_: unknown, record: API.Plugin) => (
+      render: (_dom, record) => (
         <Dropdown
           menu={{
             items: [

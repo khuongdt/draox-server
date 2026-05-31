@@ -4,6 +4,7 @@ import { Spin, Typography } from 'antd';
 const { Text } = Typography;
 
 interface IPReputationGaugeProps {
+  ip?: string;
   score: number;
   loading?: boolean;
 }

@@ -88,7 +88,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       }
     },
     // Wrap every page with ErrorBoundary so a single page crash doesn't kill the shell
-    childrenRender: (children) => (
+    childrenRender: (children: React.ReactNode) => (
       <ErrorBoundary>{children}</ErrorBoundary>
     ),
     ...initialState?.settings,

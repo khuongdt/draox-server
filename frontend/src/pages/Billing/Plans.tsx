@@ -143,8 +143,8 @@ export default function PlansPage() {
         title={<span style={{ color: '#e0e0e0' }}>Assign Plan: {assignModal.planName}</span>}
         onCancel={() => setAssignModal({ visible: false, planId: '', planName: '' })}
         footer={null}
+        style={{ background: '#16213e', border: '1px solid #2a2a4a' }}
         styles={{
-          content: { background: '#16213e', border: '1px solid #2a2a4a' },
           header: { background: '#16213e', borderBottom: '1px solid #2a2a4a' },
         }}
       >
