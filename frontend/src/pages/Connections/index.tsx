@@ -15,15 +15,20 @@ export default function ConnectionsPage() {
   const [stats, setStats] = useState<API.ConnectionStats | undefined>(undefined);
 
   // ── HTTP data ────────────────────────────────────────────────────────────────
+  // listConnections + getConnectionStats are fetched independently so a stats
+  // failure (e.g. 404 or backend error) still lets the table render.
   const refresh = useCallback(() => {
     setLoading(true);
-    Promise.all([listConnections(), getConnectionStats()])
-      .then(([list, st]) => {
-        setConnections(list);
-        setStats(st);
-      })
-      .catch((e: Error) => message.error(`Failed to load: ${e.message}`))
+    listConnections()
+      .then((list) => setConnections(list))
+      .catch((e: Error) => message.error(`Failed to load connections: ${e.message}`))
       .finally(() => setLoading(false));
+    getConnectionStats()
+      .then((st) => setStats(st))
+      .catch(() => {
+        // Stats are optional — silent fail. Table still works.
+        setStats(undefined);
+      });
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);

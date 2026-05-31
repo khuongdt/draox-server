@@ -1,8 +1,13 @@
 import { request } from '@umijs/max';
 
-/** List all active connections. */
+/** List all active connections. Unwraps `{ total, connections }` envelope. */
 export async function listConnections(): Promise<API.Connection[]> {
-  return request('/api/connections', { method: 'GET' });
+  const res = await request<any>('/api/connections', { method: 'GET' });
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.connections)) return res.connections;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.connections)) return res.data.connections;
+  return [];
 }
 
 /** Get a single connection by ID. */

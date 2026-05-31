@@ -1,8 +1,13 @@
 import { request } from '@umijs/max';
 
-/** List all active sessions. */
+/** List all active sessions. Unwraps `{ total, sessions }` or `{ data: { sessions } }` envelope. */
 export async function listSessions(): Promise<API.Session[]> {
-  return request('/api/sessions', { method: 'GET' });
+  const res = await request<any>('/api/sessions', { method: 'GET' });
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.sessions)) return res.sessions;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.sessions)) return res.data.sessions;
+  return [];
 }
 
 /** Get a single session by ID. */

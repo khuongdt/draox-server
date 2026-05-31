@@ -1,13 +1,22 @@
 import { request } from '@umijs/max';
 
-/** List all dynamically registered plugin routes. */
+/** List all dynamically registered plugin routes. Unwraps `{ total, routes }`. */
 export async function listRoutes(): Promise<API.DynamicRoute[]> {
-  return request('/api/routes', { method: 'GET' });
+  const res = await request<any>('/api/routes', { method: 'GET' });
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.routes)) return res.routes;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.routes)) return res.data.routes;
+  return [];
 }
 
-/** Fetch routes registered by a specific plugin. */
+/** Fetch routes registered by a specific plugin. Unwraps `{ plugin_id, total, routes }`. */
 export async function getPluginRoutes(pluginId: string): Promise<API.DynamicRoute[]> {
-  return request(`/api/routes/${pluginId}`, { method: 'GET' });
+  const res = await request<any>(`/api/routes/${pluginId}`, { method: 'GET' });
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.routes)) return res.routes;
+  if (Array.isArray(res?.data?.routes)) return res.data.routes;
+  return [];
 }
 
 /** Register a new route for a plugin. */
