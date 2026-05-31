@@ -16,24 +16,47 @@ pub struct PluginListResponse {
 #[derive(Serialize)]
 pub struct PluginSummary {
     pub id: String,
+    pub name: String,
+    pub version: String,
+    /// "builtin" or "wasm". Determined heuristically — see `plugin_type_of`.
+    pub plugin_type: &'static str,
     pub state: PluginState,
     pub registered_at: String,
     pub activated_at: Option<String>,
 }
 
+/// Built-in plugins are registered through `register_builtin` and have IDs
+/// from the well-known `io.draox.*` namespace. Anything else is assumed to
+/// be a marketplace / WASM plugin until the registry surfaces explicit type
+/// metadata (tracked separately).
+fn plugin_type_of(id: &str) -> &'static str {
+    if id.starts_with("io.draox.") { "builtin" } else { "wasm" }
+}
+
 /// GET /api/plugins
 pub async fn list_plugins(State(state): State<AppState>) -> impl IntoResponse {
-    let plugins = state.plugin_registry.list();
-    let total = plugins.len();
-    let summaries: Vec<PluginSummary> = plugins
-        .into_iter()
-        .map(|p| PluginSummary {
-            id: p.id.to_string(),
-            state: p.state,
-            registered_at: p.registered_at.to_rfc3339(),
-            activated_at: p.activated_at.map(|t| t.to_rfc3339()),
-        })
-        .collect();
+    // `registry.list()` is sync and returns IDs + state quickly; `get_info`
+    // is async and locks each plugin briefly to read `name` / `version`
+    // from the trait. We pay that lock cost once per request — plugin lists
+    // are small (single digits in practice).
+    let basic = state.plugin_registry.list();
+    let mut summaries: Vec<PluginSummary> = Vec::with_capacity(basic.len());
+    for entry in basic {
+        let (name, version) = match state.plugin_registry.get_info(&entry.id).await {
+            Ok(info) => (info.name, info.version),
+            Err(_)   => (String::new(), String::new()),
+        };
+        summaries.push(PluginSummary {
+            id: entry.id.to_string(),
+            plugin_type: plugin_type_of(entry.id.as_str()),
+            name,
+            version,
+            state: entry.state,
+            registered_at: entry.registered_at.to_rfc3339(),
+            activated_at: entry.activated_at.map(|t| t.to_rfc3339()),
+        });
+    }
+    let total = summaries.len();
 
     ApiResponse::ok(PluginListResponse {
         total,
@@ -55,6 +78,9 @@ pub async fn get_plugin(
 
     Ok(ApiResponse::ok(PluginSummary {
         id: info.id.to_string(),
+        plugin_type: plugin_type_of(info.id.as_str()),
+        name: info.name,
+        version: info.version,
         state: info.state,
         registered_at: info.registered_at.to_rfc3339(),
         activated_at: info.activated_at.map(|t| t.to_rfc3339()),

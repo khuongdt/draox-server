@@ -1,10 +1,12 @@
 import { request } from '@umijs/max';
 
-/** List all installed plugins (builtin + WASM). */
+/** List all installed plugins (builtin + WASM). Unwraps `{ total, plugins }`. */
 export async function listPlugins(): Promise<API.Plugin[]> {
   const res = await request<any>('/api/plugins', { method: 'GET' });
   if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.plugins)) return res.plugins;
   if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.plugins)) return res.data.plugins;
   return [];
 }
 
