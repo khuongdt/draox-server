@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DraoxClientWpf/DraoxClientWpf.csproj" />
+  <Project Path="DraoxWpfDemo/DraoxWpfDemo.csproj" />
+</Solution>

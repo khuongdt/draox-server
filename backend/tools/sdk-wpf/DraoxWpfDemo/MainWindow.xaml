@@ -133,16 +133,6 @@
             <ComboBoxItem Content="TCP"/>
           </ComboBox>
 
-          <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-            <Button x:Name="BtnConnect" Content="Connect"
-                    Style="{StaticResource BtnPrimary}"
-                    Click="BtnConnect_Click" MinWidth="82"/>
-            <Button x:Name="BtnDisconnect" Content="Disconnect"
-                    Style="{StaticResource BtnDanger}"
-                    Click="BtnDisconnect_Click"
-                    IsEnabled="False" Margin="6,0,0,0" MinWidth="82"/>
-          </StackPanel>
-
           <!-- Auth -->
           <TextBlock Text="AUTHENTICATION" Style="{StaticResource SectionTitle}"/>
 
@@ -155,10 +145,15 @@
                        CaretBrush="#CDD6F4" BorderBrush="#45475A"
                        BorderThickness="1" Padding="8,5" FontSize="13"/>
 
-          <Button x:Name="BtnAuth" Content="Login"
-                  Style="{StaticResource BtnPrimary}"
-                  Click="BtnAuth_Click"
-                  Margin="0,8,0,0" IsEnabled="False"/>
+          <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+            <Button x:Name="BtnLogin" Content="Login"
+                    Style="{StaticResource BtnPrimary}"
+                    Click="BtnLogin_Click" MinWidth="82"/>
+            <Button x:Name="BtnLogout" Content="Logout"
+                    Style="{StaticResource BtnDanger}"
+                    Click="BtnLogout_Click"
+                    IsEnabled="False" Margin="6,0,0,0" MinWidth="82"/>
+          </StackPanel>
 
           <!-- Channel -->
           <TextBlock Text="CHANNEL" Style="{StaticResource SectionTitle}"/>

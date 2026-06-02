@@ -22,66 +22,52 @@ public partial class MainWindow : Window
         LvMessages.ItemsSource = Messages;
     }
 
-    // ── Connection ────────────────────────────────────────────────────────────
+    // ── Login / Logout ────────────────────────────────────────────────────────
 
-    private async void BtnConnect_Click(object sender, RoutedEventArgs e)
+    private async void BtnLogin_Click(object sender, RoutedEventArgs e)
     {
-        SetConnectBusy(true);
+        var username = TxtUsername.Text.Trim();
+        var password = PwdPassword.Password;
+
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            AddSystem("Please enter a username.", isError: true);
+            return;
+        }
+
+        BtnLogin.IsEnabled = false;
+        SetCredentialsEnabled(false);
+
+        var config = new DraoxConfig
+        {
+            Host     = TxtHost.Text.Trim(),
+            Port     = int.TryParse(TxtPort.Text, out var p) ? p : 9002,
+            Protocol = CmbProtocol.SelectedIndex == 1 ? DraoxProtocol.Tcp : DraoxProtocol.WebSocket,
+        };
+
+        _client = new DraoxClient(config);
+        _client.OnStateChanged  += s => UpdateStatus(s);
+        _client.OnDisconnected  += r => AddSystem($"Disconnected: {r}");
+        _client.OnAuthenticated += () =>
+        {
+            TxtSession.Text = $"Session: {_client?.SessionId?[..8]}…";
+        };
+
         try
         {
-            var config = new DraoxConfig
-            {
-                Host     = TxtHost.Text.Trim(),
-                Port     = int.TryParse(TxtPort.Text, out var p) ? p : 9002,
-                Protocol = CmbProtocol.SelectedIndex == 1 ? DraoxProtocol.Tcp : DraoxProtocol.WebSocket,
-            };
-
-            _client = new DraoxClient(config);
-            _client.OnStateChanged  += s => UpdateStatus(s);
-            _client.OnDisconnected  += r => AddSystem($"Disconnected: {r}");
-            _client.OnAuthenticated += () =>
-            {
-                TxtSession.Text = $"Session: {_client.SessionId?[..8]}…";
-                SetAuthState(true);
-            };
-
             await _client.ConnectAsync();
             AddSystem($"Connected to {config.Host}:{config.Port} ({config.Protocol})");
-            BtnDisconnect.IsEnabled = true;
-            BtnAuth.IsEnabled       = true;
-            BtnConnect.IsEnabled    = false;
         }
         catch (Exception ex)
         {
             AddSystem($"Connect failed: {ex.Message}", isError: true);
-            SetConnectBusy(false);
+            await SafeDisconnectAsync();
+            ResetLoginUi();
+            return;
         }
-    }
 
-    private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)
-    {
-        _messaging?.UnregisterListeners();
-        if (_client is not null) await _client.DisconnectAsync();
-        _client   = null;
-        _messaging = null;
-
-        TxtSession.Text         = "";
-        BtnConnect.IsEnabled    = true;
-        BtnDisconnect.IsEnabled = false;
-        BtnAuth.IsEnabled       = false;
-        BtnHistory.IsEnabled    = false;
-        SetInputEnabled(false);
-        AddSystem("Disconnected.");
-    }
-
-    private async void BtnAuth_Click(object sender, RoutedEventArgs e)
-    {
-        if (_client is null) return;
-        BtnAuth.IsEnabled = false;
         try
         {
-            var username = TxtUsername.Text.Trim();
-            var password = PwdPassword.Password;
             await _client.LoginAsync(username, password);
             _myUserId = username;
 
@@ -92,14 +78,43 @@ public partial class MainWindow : Window
             _messaging.RegisterListeners();
 
             AddSystem($"Logged in as '{_myUserId}'");
-            BtnHistory.IsEnabled = true;
+            BtnLogout.IsEnabled = true;
             SetInputEnabled(true);
         }
         catch (Exception ex)
         {
             AddSystem($"Login failed: {ex.Message}", isError: true);
-            BtnAuth.IsEnabled = true;
+            await SafeDisconnectAsync();
+            ResetLoginUi();
         }
+    }
+
+    private async void BtnLogout_Click(object sender, RoutedEventArgs e)
+    {
+        _messaging?.UnregisterListeners();
+        await SafeDisconnectAsync();
+        ResetLoginUi();
+        AddSystem("Logged out.");
+    }
+
+    private async Task SafeDisconnectAsync()
+    {
+        if (_client is not null)
+        {
+            try { await _client.DisconnectAsync(); } catch { /* ignore */ }
+        }
+        _client    = null;
+        _messaging = null;
+    }
+
+    private void ResetLoginUi()
+    {
+        TxtSession.Text      = "";
+        BtnLogin.IsEnabled   = true;
+        BtnLogout.IsEnabled  = false;
+        BtnHistory.IsEnabled = false;
+        SetCredentialsEnabled(true);
+        SetInputEnabled(false);
     }
 
     // ── Channel / History ─────────────────────────────────────────────────────
@@ -225,23 +240,19 @@ public partial class MainWindow : Window
         });
     }
 
-    private void SetConnectBusy(bool connecting)
+    private void SetCredentialsEnabled(bool enabled)
     {
-        BtnConnect.IsEnabled = !connecting;
-    }
-
-    private void SetAuthState(bool authed)
-    {
-        Dispatcher.Invoke(() =>
-        {
-            BtnAuth.IsEnabled = !authed;
-        });
+        TxtHost.IsEnabled     = enabled;
+        TxtPort.IsEnabled     = enabled;
+        CmbProtocol.IsEnabled = enabled;
+        TxtUsername.IsEnabled = enabled;
+        PwdPassword.IsEnabled = enabled;
     }
 
     private void SetInputEnabled(bool enabled)
     {
-        TxtInput.IsEnabled  = enabled;
-        BtnSend.IsEnabled   = enabled;
+        TxtInput.IsEnabled   = enabled;
+        BtnSend.IsEnabled    = enabled;
         BtnHistory.IsEnabled = enabled;
     }
 
