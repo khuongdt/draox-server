@@ -70,3 +70,4 @@ knowledge-base/
 
 # Playwright test artifacts
 .playwright-mcp/
+/documents
