@@ -257,6 +257,11 @@ public class DraoxClient : IDisposable
             RaiseEvent(() => OnConnected?.Invoke());
             StartHeartbeat();
         }
+        else
+        {
+            SetState(ClientState.Disconnected);
+            RaiseEvent(() => OnError?.Invoke("Reconnection failed after max attempts"));
+        }
     }
 
     private void StartHeartbeat()
