@@ -13,15 +13,16 @@
 ## Build MSI Installer
 
 ```powershell
-# 1. Build release binary
+# 1. Build release binary (run from backend/ directory)
 cargo build --release --bin=draox-server
 
-# 2. Build MSI
-cargo wix --no-build --nocapture `
+# 2. Build MSI (run from backend/ directory)
+cargo wix -p draox-server --no-build --nocapture `
+    --include deploy/windows/wix/main.wxs `
     -o target/wix/draox-server-0.1.0-x86_64.msi
 
 # Or build + package in one step
-cargo wix
+cargo wix -p draox-server --include deploy/windows/wix/main.wxs --nocapture
 ```
 
 Output: `target/wix/draox-server-{version}-x86_64.msi`

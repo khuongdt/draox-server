@@ -69,7 +69,7 @@ if (-not $service) {
         }
         if ((Get-Service -Name $ServiceName).Status -ne "Stopped") {
             Write-Host "[WARN]  Service did not stop within ${timeout}s. Force killing..." -ForegroundColor Yellow
-            $proc = Get-WmiObject Win32_Service | Where-Object { $_.Name -eq $ServiceName }
+            $proc = Get-CimInstance -ClassName Win32_Service -Filter "Name='$ServiceName'"
             if ($proc -and $proc.ProcessId -gt 0) {
                 Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
             }
@@ -153,7 +153,7 @@ if ($Purge) {
     }
 
     # Remove base directory if empty
-    if ((Test-Path $baseDir) -and -not (Get-ChildItem $baseDir -Recurse -File)) {
+    if ((Test-Path $baseDir) -and -not (Get-ChildItem $baseDir -Recurse -File -ErrorAction SilentlyContinue)) {
         Remove-Item -Path $baseDir -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "         Removed: $baseDir" -ForegroundColor DarkGray
     }

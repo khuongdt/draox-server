@@ -94,7 +94,7 @@
             <Component Id="DefaultConfigFile" Guid="C2D3E4F5-A6B7-4C8D-9E0F-1A2B3C4D5E6F" Win64="yes">
                 <File Id="DefaultConfigToml"
                       Name="default.toml"
-                      Source="deploy\windows\config\default.toml"
+                      Source="$(sys.SOURCEFILEDIR)..\config\default.toml"
                       KeyPath="yes" />
             </Component>
         </ComponentGroup>
@@ -105,7 +105,7 @@
                        NeverOverwrite="yes" Permanent="yes">
                 <File Id="WorkingConfigToml"
                       Name="default.toml"
-                      Source="deploy\windows\config\default.toml"
+                      Source="$(sys.SOURCEFILEDIR)..\config\default.toml"
                       KeyPath="yes" />
             </Component>
         </ComponentGroup>
@@ -115,19 +115,19 @@
             <Component Id="InstallServiceScript" Guid="E4F5A6B7-C8D9-4E0F-1A2B-3C4D5E6F7A8B" Win64="yes">
                 <File Id="InstallServicePs1"
                       Name="install-service.ps1"
-                      Source="deploy\windows\scripts\install-service.ps1"
+                      Source="$(sys.SOURCEFILEDIR)..\scripts\install-service.ps1"
                       KeyPath="yes" />
             </Component>
             <Component Id="UninstallServiceScript" Guid="F5A6B7C8-D9E0-4F1A-2B3C-4D5E6F7A8B9C" Win64="yes">
                 <File Id="UninstallServicePs1"
                       Name="uninstall-service.ps1"
-                      Source="deploy\windows\scripts\uninstall-service.ps1"
+                      Source="$(sys.SOURCEFILEDIR)..\scripts\uninstall-service.ps1"
                       KeyPath="yes" />
             </Component>
             <Component Id="ManageFirewallScript" Guid="A6B7C8D9-E0F1-4A2B-3C4D-5E6F7A8B9C0D" Win64="yes">
                 <File Id="ManageFirewallPs1"
                       Name="manage-firewall.ps1"
-                      Source="deploy\windows\scripts\manage-firewall.ps1"
+                      Source="$(sys.SOURCEFILEDIR)..\scripts\manage-firewall.ps1"
                       KeyPath="yes" />
             </Component>
         </ComponentGroup>
@@ -222,14 +222,10 @@
                                          Scope="any"
                                          Description="Draox Server Prometheus metrics" />
             </Component>
-            <Component Id="FirewallAdmin" Guid="B1E8F9A0-B1C2-4D3E-4F5A-6B7C8D9E0F1A" Win64="yes">
-                <fire:FirewallException Id="FwTcp9100"
-                                         Name="Draox Server - Admin API (9100)"
-                                         Protocol="tcp"
-                                         Port="9100"
-                                         Scope="localSubnet"
-                                         Description="Draox Server Admin REST API (local subnet)" />
-            </Component>
+            <!-- Admin API (9100) is intentionally excluded here.
+                 fire:FirewallException cannot restrict to localhost-only (RemoteAddress is unsupported).
+                 Run manage-firewall.ps1 -Action Add after installation to create the correct
+                 localhost-only rule: RemoteAddress=127.0.0.1,::1 -->
         </ComponentGroup>
 
         <!-- ══════════════════════════════════════════════════
@@ -259,7 +255,7 @@
 
         <Feature Id="FeatureFirewall"
                  Title="Firewall Rules"
-                 Description="Open Windows Firewall ports for TCP (9000), UDP (9001), WebSocket (9002), HTTP (9003), Metrics (9090), and Admin API (9100, local subnet)."
+                 Description="Open Windows Firewall ports for TCP (9000), UDP (9001), WebSocket (9002), HTTP (9003), and Metrics (9090). Admin API port (9100) must be configured separately via manage-firewall.ps1 for localhost-only access."
                  Level="1"
                  AllowAdvertise="no">
             <ComponentGroupRef Id="FirewallComponents" />
@@ -272,7 +268,7 @@
         <UIRef Id="WixUI_ErrorProgressText" />
 
         <!-- License -->
-        <WixVariable Id="WixUILicenseRtf" Value="deploy\windows\wix\license.rtf" />
+        <WixVariable Id="WixUILicenseRtf" Value="$(sys.SOURCEFILEDIR)license.rtf" />
 
     </Product>
 </Wix>

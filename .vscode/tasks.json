@@ -108,6 +108,7 @@
     // ─────────────────────────────────────────────
     {
       "label": "cargo-build-deb",
+      "detail": "Requires: cargo install cargo-deb",
       "type": "shell",
       "command": "cargo deb -p draox-server",
       "options": { "cwd": "${workspaceFolder}/backend" },
@@ -117,8 +118,9 @@
     },
     {
       "label": "cargo-build-msi",
+      "detail": "Requires: cargo install cargo-wix + WiX Toolset v3.14+",
       "type": "shell",
-      "command": "cargo wix",
+      "command": "cargo wix -p draox-server --include deploy/windows/wix/main.wxs --nocapture",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": ["$rustc"],
       "group": "build",
@@ -421,6 +423,7 @@
       "label": "deploy-docker-up",
       "type": "shell",
       "command": "docker compose up -d --build",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "group": "build",
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
@@ -429,6 +432,7 @@
       "label": "deploy-docker-down",
       "type": "shell",
       "command": "docker compose down",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
@@ -436,6 +440,7 @@
       "label": "deploy-docker-logs",
       "type": "shell",
       "command": "docker compose logs -f draox-server",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "isBackground": true,
       "presentation": { "reveal": "always", "panel": "dedicated" }
@@ -444,6 +449,7 @@
       "label": "deploy-docker-logs-admin",
       "type": "shell",
       "command": "docker compose logs -f draox-admin",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "isBackground": true,
       "presentation": { "reveal": "always", "panel": "dedicated" }
@@ -452,6 +458,7 @@
       "label": "deploy-docker-restart",
       "type": "shell",
       "command": "docker compose restart draox-server",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
@@ -459,6 +466,7 @@
       "label": "deploy-docker-restart-admin",
       "type": "shell",
       "command": "docker compose restart draox-admin",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
@@ -466,6 +474,7 @@
       "label": "deploy-docker-build-frontend",
       "type": "shell",
       "command": "docker compose build draox-admin",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "group": "build",
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
@@ -477,7 +486,8 @@
     {
       "label": "deploy-linux-install",
       "type": "shell",
-      "command": "wsl bash deploy/linux/install.sh",
+      "command": "wsl sudo bash deploy/linux/install.sh",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "group": "build",
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
@@ -485,14 +495,16 @@
     {
       "label": "deploy-linux-uninstall",
       "type": "shell",
-      "command": "wsl bash deploy/linux/uninstall.sh",
+      "command": "wsl sudo bash deploy/linux/uninstall.sh",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
     {
       "label": "deploy-linux-uninstall-purge",
       "type": "shell",
-      "command": "wsl bash deploy/linux/uninstall.sh --purge",
+      "command": "wsl sudo bash deploy/linux/uninstall.sh --purge",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
@@ -503,7 +515,8 @@
     {
       "label": "deploy-windows-install",
       "type": "shell",
-      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/install-service.ps1",
+      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/install-service.ps1 -Force",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "group": "build",
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
@@ -512,13 +525,23 @@
       "label": "deploy-windows-uninstall",
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/uninstall-service.ps1",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
     {
-      "label": "deploy-windows-firewall",
+      "label": "deploy-windows-firewall-add",
       "type": "shell",
-      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/manage-firewall.ps1",
+      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/manage-firewall.ps1 -Action Add",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "deploy-windows-firewall-remove",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File deploy/windows/scripts/manage-firewall.ps1 -Action Remove",
+      "options": { "cwd": "${workspaceFolder}/backend" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },

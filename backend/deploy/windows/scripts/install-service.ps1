@@ -38,7 +38,8 @@ param(
     [string]$DisplayName = "Draox Server",
     [ValidateSet("Automatic", "Manual", "Disabled")]
     [string]$StartType = "Automatic",
-    [string]$ServiceAccount = "NT AUTHORITY\LocalService"
+    [string]$ServiceAccount = "NT AUTHORITY\LocalService",
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -87,10 +88,12 @@ Write-Host ""
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existing) {
     Write-Host "[WARN]  Service '$ServiceName' already exists (Status: $($existing.Status))." -ForegroundColor Yellow
-    $confirm = Read-Host "Reinstall? [Y/n]"
-    if ($confirm -match "^[Nn]") {
-        Write-Host "[INFO]  Cancelled." -ForegroundColor Cyan
-        exit 0
+    if (-not $Force) {
+        $confirm = Read-Host "Reinstall? [Y/n]"
+        if ($confirm -match "^[Nn]") {
+            Write-Host "[INFO]  Cancelled." -ForegroundColor Cyan
+            exit 0
+        }
     }
     # Stop and remove existing service
     if ($existing.Status -eq "Running") {
@@ -121,7 +124,7 @@ foreach ($dir in $dirs) {
 
 # ── Copy config if not present ──
 if (-not (Test-Path $ConfigPath)) {
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $scriptDir = $PSScriptRoot
     $defaultConfig = Join-Path (Split-Path -Parent $scriptDir) "config\default.toml"
     if (Test-Path $defaultConfig) {
         Copy-Item $defaultConfig $ConfigPath
