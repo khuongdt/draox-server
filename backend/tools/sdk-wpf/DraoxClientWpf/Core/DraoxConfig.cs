@@ -67,6 +67,9 @@ internal class WireRequest
     [JsonPropertyName("type")]    public string Type { get; init; } = "request";
     [JsonPropertyName("action")]  public string Action { get; init; } = "";
     [JsonPropertyName("payload")] public JsonNode? Payload { get; init; }
+    [JsonPropertyName("token")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Token { get; init; }
 }
 
 internal class PingMessage

@@ -114,6 +114,8 @@
                        Foreground="#A6ADC8" FontSize="12" VerticalAlignment="Center"/>
           </StackPanel>
           <TextBlock x:Name="TxtSession" Foreground="#6C7086" FontSize="11"
+                     TextWrapping="Wrap" Margin="0,0,0,2"/>
+          <TextBlock x:Name="TxtToken" Foreground="#6C7086" FontSize="10"
                      TextWrapping="Wrap" Margin="0,0,0,4"/>
 
           <!-- Connection -->

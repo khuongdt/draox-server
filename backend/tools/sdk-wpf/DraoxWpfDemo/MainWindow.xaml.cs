@@ -51,6 +51,10 @@ public partial class MainWindow : Window
         _client.OnAuthenticated += () =>
         {
             TxtSession.Text = $"Session: {_client?.SessionId?[..8]}…";
+            var t = _client?.Token;
+            TxtToken.Text = t is { Length: > 12 }
+                ? $"JWT: {t[..8]}…{t[^4..]}"
+                : "";
         };
 
         try
@@ -110,6 +114,7 @@ public partial class MainWindow : Window
     private void ResetLoginUi()
     {
         TxtSession.Text      = "";
+        TxtToken.Text        = "";
         BtnLogin.IsEnabled   = true;
         BtnLogout.IsEnabled  = false;
         BtnHistory.IsEnabled = false;

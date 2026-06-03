@@ -31,6 +31,7 @@ public class DraoxClient : IDisposable
 
     public ClientState State     { get; private set; } = ClientState.Disconnected;
     public string?     SessionId { get; private set; }
+    public string?     Token     { get; private set; }
     public bool        IsAuthenticated => !string.IsNullOrEmpty(SessionId);
     public DraoxConfig Config    => _config;
 
@@ -87,6 +88,7 @@ public class DraoxClient : IDisposable
         }
 
         SessionId = null;
+        Token     = null;
         SetState(ClientState.Disconnected);
         RaiseEvent(() => OnDisconnected?.Invoke(reason));
     }
@@ -95,6 +97,7 @@ public class DraoxClient : IDisposable
     {
         _savedUserId = userId;
         _savedToken  = token;
+        Token        = token;
 
         var data = await RequestInternalAsync<AuthResponseData>(
             "auth", new { user_id = userId, token }, ct);
@@ -169,7 +172,7 @@ public class DraoxClient : IDisposable
     {
         var id   = NewId();
         var json = Serializer.Serialize(
-            new WireRequest { Id = id, Action = action, Payload = Serializer.ToNode(payload) });
+            new WireRequest { Id = id, Action = action, Payload = Serializer.ToNode(payload), Token = Token });
         var res  = await _broker!.SendAsync(_connection!, json, id, _config.TimeoutMs, ct);
         if (!res.Success) throw new DraoxException(res.Error ?? "request failed");
         return Serializer.Deserialize<T>(res.RawData);
