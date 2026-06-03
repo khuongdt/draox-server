@@ -1,15 +1,9 @@
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Badge, Button, Space, Popconfirm, message, Spin, Row, Col } from 'antd';
+import { Button, Space, Popconfirm, message, Spin, Row, Col } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import DarkStatisticCard from '@/components/DarkStatisticCard';
 import { listSessions, destroySession, drainSession } from '@/services/sessions';
-
-const STATE_STATUS: Record<string, 'success' | 'processing' | 'default'> = {
-  active: 'success',
-  draining: 'processing',
-  closed: 'default',
-};
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<API.Session[]>([]);
@@ -41,15 +35,13 @@ export default function SessionsPage() {
     refresh();
   };
 
-  const activeCount = sessions.filter((s) => s.state === 'active').length;
-
   const columns: ProColumns<API.Session>[] = [
     {
       title: 'Session ID',
-      dataIndex: 'id',
+      dataIndex: 'session_id',
       render: (_dom, record) => (
         <span style={{ fontFamily: 'monospace', color: '#e0e0e0', fontSize: 12 }}>
-          {record.id.slice(0, 20)}…
+          {record.session_id.slice(0, 20)}…
         </span>
       ),
     },
@@ -60,9 +52,9 @@ export default function SessionsPage() {
     },
     {
       title: 'Connections',
-      dataIndex: 'connections',
+      dataIndex: 'connection_count',
       render: (_dom, record) => (
-        <span style={{ color: '#ff8c42', fontWeight: 700 }}>{record.connections?.length ?? 0}</span>
+        <span style={{ color: '#ff8c42', fontWeight: 700 }}>{record.connection_count ?? 0}</span>
       ),
     },
     {
@@ -73,16 +65,6 @@ export default function SessionsPage() {
       ),
     },
     {
-      title: 'State',
-      dataIndex: 'state',
-      render: (_dom, record) => (
-        <Badge
-          status={STATE_STATUS[record.state] ?? 'default'}
-          text={<span style={{ color: '#e0e0e0' }}>{record.state}</span>}
-        />
-      ),
-    },
-    {
       title: 'Actions',
       key: 'actions',
       render: (_dom, record) => (
@@ -90,7 +72,7 @@ export default function SessionsPage() {
           <Popconfirm
             title="Drain this session?"
             description="New connections will be rejected; existing connections can finish."
-            onConfirm={() => handleDrain(record.id)}
+            onConfirm={() => handleDrain(record.session_id)}
             okText="Drain"
             okButtonProps={{ style: { background: '#f5a623', borderColor: '#f5a623', color: '#000' } }}
           >
@@ -101,7 +83,7 @@ export default function SessionsPage() {
           <Popconfirm
             title="Destroy this session?"
             description="All connections in this session will be immediately terminated."
-            onConfirm={() => handleDestroy(record.id)}
+            onConfirm={() => handleDestroy(record.session_id)}
             okText="Destroy"
             okButtonProps={{ danger: true }}
           >
@@ -121,7 +103,11 @@ export default function SessionsPage() {
           <DarkStatisticCard title="Total Sessions" value={sessions.length} color="#e0e0e0" />
         </Col>
         <Col xs={24} sm={12}>
-          <DarkStatisticCard title="Active" value={activeCount} color="#53c28b" />
+          <DarkStatisticCard
+            title="Total Connections"
+            value={sessions.reduce((sum, s) => sum + (s.connection_count ?? 0), 0)}
+            color="#53c28b"
+          />
         </Col>
       </Row>
 
@@ -129,7 +115,7 @@ export default function SessionsPage() {
         <ProTable<API.Session>
           columns={columns}
           dataSource={sessions}
-          rowKey="id"
+          rowKey="session_id"
           search={false}
           options={{ reload: () => refresh() }}
           pagination={{ pageSize: 20 }}

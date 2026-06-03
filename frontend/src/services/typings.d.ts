@@ -78,12 +78,10 @@ declare namespace API {
 
   // ─── Sessions ─────────────────────────────────────────────────────────────
   interface Session {
-    id: string;
+    session_id: string;
     client_id: string;
-    connections: string[];
+    connection_count: number;
     created_at: string;
-    state: string;
-    metadata: Record<string, unknown>;
   }
 
   interface SessionMetrics {
