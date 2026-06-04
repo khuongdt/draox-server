@@ -73,14 +73,28 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Step 2: HTTP POST to Admin API → JWT token
+        string resolvedUser, jwtToken;
         try
         {
-            // Step 2: HTTP POST to Admin API to obtain JWT
-            AddSystem($"[2/3] Logging in via HTTP (port {config.AdminPort})…");
-            // Step 3: send AUTH token over TCP to bind session
+            AddSystem($"[2/3] HTTP login → {config.Host}:{config.AdminPort}…");
+            (resolvedUser, jwtToken) = await _client.LoginHttpAsync(username, password);
+            AddSystem($"[2/3] HTTP login OK (user: {resolvedUser}).");
+        }
+        catch (Exception ex)
+        {
+            AddSystem($"[2/3] HTTP login failed: {ex.Message}", isError: true);
+            await SafeDisconnectAsync();
+            ResetLoginUi();
+            return;
+        }
+
+        // Step 3: send JWT over TCP/WS to bind the session
+        try
+        {
             AddSystem($"[3/3] Authenticating over {config.Protocol}…");
-            await _client.LoginAsync(username, password);
-            _myUserId = username;
+            await _client.AuthenticateAsync(resolvedUser, jwtToken);
+            _myUserId = resolvedUser;
 
             _messaging = new MessagingPlugin(_client);
             _messaging.OnMessage        += OnMessageReceived;
@@ -88,13 +102,13 @@ public partial class MainWindow : Window
             _messaging.OnTyping         += OnTyping;
             _messaging.RegisterListeners();
 
-            AddSystem($"Logged in as '{_myUserId}'. Session ready.");
+            AddSystem($"[3/3] Session ready. Logged in as '{_myUserId}'.");
             BtnLogout.IsEnabled = true;
             SetInputEnabled(true);
         }
         catch (Exception ex)
         {
-            AddSystem($"Login failed: {ex.Message}", isError: true);
+            AddSystem($"[3/3] Auth over {config.Protocol} failed: {ex.Message}", isError: true);
             await SafeDisconnectAsync();
             ResetLoginUi();
         }

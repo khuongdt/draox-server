@@ -105,7 +105,10 @@ public class DraoxClient : IDisposable
         RaiseEvent(() => OnAuthenticated?.Invoke());
     }
 
-    public async Task LoginAsync(string username, string password, CancellationToken ct = default)
+    /// Step 1 of 2: POST credentials to the Admin HTTP API and return (resolvedUsername, jwtToken).
+    /// Does NOT touch the socket connection.
+    public async Task<(string Username, string Token)> LoginHttpAsync(
+        string username, string password, CancellationToken ct = default)
     {
         _savedUsername = username;
         _savedPassword = password;
@@ -121,18 +124,25 @@ public class DraoxClient : IDisposable
         var json = await resp.Content.ReadAsStringAsync(ct);
 
         if (!resp.IsSuccessStatusCode)
-            throw new DraoxException($"Login failed ({(int)resp.StatusCode}): {json}");
+            throw new DraoxException($"HTTP login failed ({(int)resp.StatusCode}): {json}");
 
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (!root.TryGetProperty("success", out var ok) || !ok.GetBoolean())
-            throw new DraoxException("Login failed: server returned success=false");
+            throw new DraoxException("HTTP login failed: server returned success=false");
 
-        var data     = root.GetProperty("data");
-        var token    = data.GetProperty("token").GetString()
-                       ?? throw new DraoxException("Login failed: missing token");
-        var user     = data.TryGetProperty("username", out var u) ? u.GetString() ?? username : username;
+        var data  = root.GetProperty("data");
+        var token = data.GetProperty("token").GetString()
+                    ?? throw new DraoxException("HTTP login failed: missing token in response");
+        var user  = data.TryGetProperty("username", out var u) ? u.GetString() ?? username : username;
 
+        return (user, token);
+    }
+
+    /// Combined shortcut: LoginHttpAsync → AuthenticateAsync.
+    public async Task LoginAsync(string username, string password, CancellationToken ct = default)
+    {
+        var (user, token) = await LoginHttpAsync(username, password, ct);
         await AuthenticateAsync(user, token, ct);
     }
 
