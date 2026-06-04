@@ -16,6 +16,9 @@ public class DraoxConfig
     public bool UseTls { get; set; } = false;
     public int TimeoutMs { get; set; } = 10_000;
     public int HeartbeatIntervalSeconds { get; set; } = 30;
+    /// Maximum consecutive unanswered pings before the connection is closed.
+    /// Default: 2 — i.e. disconnect after 2 × HeartbeatIntervalSeconds of silence.
+    public int MaxMissedHeartbeats { get; set; } = 2;
     public ReconnectConfig Reconnect { get; set; } = new();
 }
 

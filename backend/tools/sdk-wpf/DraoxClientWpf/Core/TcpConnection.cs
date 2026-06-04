@@ -22,8 +22,12 @@ internal class TcpConnection : IConnection
         await _tcp.ConnectAsync(config.Host, config.Port, ct);
 
         var stream = _tcp.GetStream();
-        _reader = new StreamReader(stream, Encoding.UTF8);
-        _writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+        // Use UTF-8 without BOM: Encoding.UTF8 emits \xEF\xBB\xBF at stream start,
+        // which makes serde_json fail with "expected value at line 1 column 1".
+        var utf8NoBom = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        _reader = new StreamReader(stream, utf8NoBom);
+        // NewLine = "\n": LF-only per Draox wire protocol (Windows default is \r\n).
+        _writer = new StreamWriter(stream, utf8NoBom) { AutoFlush = true, NewLine = "\n" };
 
         _receiveCts = new CancellationTokenSource();
         _ = ReceiveLoopAsync(_receiveCts.Token);

@@ -22,6 +22,7 @@ pub struct DraoxConfig {
     pub logging: LoggingConfig,
     pub metrics: MetricsConfig,
     pub marketplace: MarketplaceConfig,
+    pub wire_protocol: WireProtocolConfig,
     pub plugins: HashMap<String, toml::Value>,
 }
 
@@ -44,6 +45,7 @@ impl Default for DraoxConfig {
             logging: LoggingConfig::default(),
             metrics: MetricsConfig::default(),
             marketplace: MarketplaceConfig::default(),
+            wire_protocol: WireProtocolConfig::default(),
             plugins: HashMap::new(),
         }
     }
@@ -744,6 +746,38 @@ impl Default for MarketplaceConfig {
             auto_update_check: true,
             update_check_interval_secs: 86_400,
             verify_signatures: true,
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────
+// Wire Protocol
+// ────────────────────────────────────────────────────────
+
+/// Configuration for the wire protocol used by all socket connections (TCP, UDP, WebSocket).
+///
+/// Controls message framing, authentication requirements, and auth timeout.
+/// Admin can change these settings without recompiling the server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WireProtocolConfig {
+    /// TCP message delimiter (configurable by admin). Default: newline `\n`.
+    /// Each TCP message must be terminated by this delimiter sequence.
+    pub frame_delimiter: String,
+    /// Seconds a connection has to complete authentication after connecting.
+    /// Connections that do not authenticate within this window are closed.
+    pub auth_timeout_secs: u64,
+    /// Whether connections must authenticate before sending non-auth messages.
+    /// Set to false to allow unauthenticated access (development only).
+    pub require_auth: bool,
+}
+
+impl Default for WireProtocolConfig {
+    fn default() -> Self {
+        Self {
+            frame_delimiter: "\n".to_string(),
+            auth_timeout_secs: 30,
+            require_auth: true,
         }
     }
 }

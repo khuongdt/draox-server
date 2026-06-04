@@ -146,6 +146,7 @@
           <PasswordBox x:Name="PwdPassword"
                        Background="#313244" Foreground="#CDD6F4"
                        CaretBrush="#CDD6F4" BorderBrush="#45475A"
+                       Password="draox"
                        BorderThickness="1" Padding="8,5" FontSize="13"/>
 
           <StackPanel Orientation="Horizontal" Margin="0,12,0,0">

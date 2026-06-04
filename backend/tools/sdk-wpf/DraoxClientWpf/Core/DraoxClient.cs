@@ -22,6 +22,8 @@ public class DraoxClient : IDisposable
     private string? _savedToken;
     private string? _savedUsername;
     private string? _savedPassword;
+    // Counts consecutive pings sent with no pong reply.
+    // Accessed from both the heartbeat task and the receive loop → always use Interlocked.
     private int _missedPings;
 
     private static readonly HttpClient _http = new();
@@ -216,7 +218,7 @@ public class DraoxClient : IDisposable
                 break;
 
             case "pong":
-                _missedPings = 0;
+                Interlocked.Exchange(ref _missedPings, 0);
                 break;
         }
     }
@@ -281,12 +283,28 @@ public class DraoxClient : IDisposable
     {
         _heartbeatCts?.Cancel();
         _heartbeatCts = new CancellationTokenSource();
+        Interlocked.Exchange(ref _missedPings, 0); // reset on each (re)connect
         _ = HeartbeatLoopAsync(_heartbeatCts.Token);
     }
 
+    /// <summary>
+    /// Sends periodic ping messages per the Draox wire protocol:
+    ///   → {"type":"ping","ts":<unix_ms>}
+    ///   ← {"type":"pong"}
+    ///
+    /// Each sent ping increments the missed-ping counter atomically (Interlocked).
+    /// A received pong resets the counter to 0 (see OnMessageReceived).
+    /// If the counter exceeds MaxMissedHeartbeats after sending a ping the
+    /// connection is closed with reason "heartbeat_timeout".
+    ///
+    /// Increment-before-send ensures the counter is never too low even when a
+    /// pong arrives on the receive thread between the send and the increment.
+    /// </summary>
     private async Task HeartbeatLoopAsync(CancellationToken ct)
     {
-        var interval = TimeSpan.FromSeconds(_config.HeartbeatIntervalSeconds);
+        var interval  = TimeSpan.FromSeconds(_config.HeartbeatIntervalSeconds);
+        var maxMissed = _config.MaxMissedHeartbeats;
+
         while (!ct.IsCancellationRequested)
         {
             try { await Task.Delay(interval, ct); }
@@ -294,10 +312,20 @@ public class DraoxClient : IDisposable
 
             if (_connection is null || !_connection.IsConnected) break;
 
-            _missedPings++;
-            if (_missedPings >= 2) { OnConnectionClosed("heartbeat_timeout"); break; }
+            // Count this ping as pending before we send it.
+            // If a pong for a previous ping arrives concurrently it resets the
+            // counter to 0 via Interlocked.Exchange — incrementing first means
+            // the count always reflects the true number of outstanding pings.
+            var pending = Interlocked.Increment(ref _missedPings);
+            if (pending > maxMissed)
+            {
+                OnConnectionClosed("heartbeat_timeout");
+                break;
+            }
 
-            var ping = Serializer.Serialize(new PingMessage { Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+            // Send: {"type":"ping","ts":<unix_ms>}\n
+            var ping = Serializer.Serialize(
+                new PingMessage { Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
             try { await _connection.SendTextAsync(ping, ct); }
             catch { break; }
         }

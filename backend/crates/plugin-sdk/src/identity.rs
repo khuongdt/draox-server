@@ -41,4 +41,25 @@ impl Identity {
     pub fn can_moderate(&self) -> bool {
         self.is_admin() || self.is_operator()
     }
+
+    /// Unauthenticated identity used before a connection completes the auth handshake.
+    ///
+    /// Role `"anonymous"` is only permitted to send `"auth"` and `"ping"` actions.
+    /// All other actions are rejected by the `AuthHandler` middleware.
+    pub fn anonymous() -> Self {
+        Self {
+            user_id: "anonymous".into(),
+            role: "anonymous".into(),
+        }
+    }
+
+    /// `true` when this identity has not yet authenticated.
+    pub fn is_anonymous(&self) -> bool {
+        self.role == "anonymous"
+    }
+
+    /// Actions that an anonymous (unauthenticated) identity is allowed to send.
+    pub fn anonymous_allowed_actions() -> &'static [&'static str] {
+        &["auth", "ping"]
+    }
 }

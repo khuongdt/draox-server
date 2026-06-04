@@ -218,6 +218,12 @@ auto_update_check = true
 update_check_interval_secs = 86400
 verify_signatures = true
 
+# ==== Wire Protocol ====
+[wire_protocol]
+frame_delimiter = "\n"     # TCP message delimiter (admin-configurable)
+auth_timeout_secs = 30     # Seconds to authenticate after connecting (all protocols)
+require_auth = true        # Set to false only for development/testing
+
 # ==== Plugins ====
 # Plugin-specific configuration goes here.
 # Example:

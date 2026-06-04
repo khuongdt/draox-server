@@ -1,4 +1,5 @@
 use crate::session::{ClientSession, SessionInfo};
+use crate::session_auth::{AuthInfo, SessionAuthenticator};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -72,6 +73,8 @@ pub struct SessionManager {
     session_metrics: DashMap<SessionId, SessionMetrics>,
     /// Draining sessions (no new connections accepted)
     draining: DashMap<SessionId, bool>,
+    /// Session-level authentication with token index for token-based binding
+    authenticator: SessionAuthenticator,
 }
 
 impl SessionManager {
@@ -85,6 +88,7 @@ impl SessionManager {
             event_bus,
             session_metrics: DashMap::new(),
             draining: DashMap::new(),
+            authenticator: SessionAuthenticator::new(),
         }
     }
 
@@ -222,9 +226,10 @@ impl SessionManager {
             // Remove client -> session mapping
             self.client_to_session.remove(&session.client_id);
 
-            // Remove metrics and draining state
+            // Remove metrics, draining state, and auth token index
             self.session_metrics.remove(session_id);
             self.draining.remove(session_id);
+            self.authenticator.revoke(session_id);
 
             self.event_bus.publish(ServerEvent::SessionDestroyed {
                 session_id: session_id.clone(),
@@ -455,6 +460,52 @@ impl SessionManager {
             .map(|r| *r.value())
             .unwrap_or(false)
     }
+
+    // ── Session authentication ──────────────────────────────────────────────
+
+    /// Mark a session as authenticated. The token_hash stored in `info` is
+    /// indexed so that `bind_connection_with_token` can look up the session.
+    pub fn authenticate_session(&self, session_id: &SessionId, info: AuthInfo) {
+        self.authenticator.authenticate(session_id, info);
+    }
+
+    /// Revoke authentication for a session (logout / token expiry).
+    pub fn revoke_session_auth(&self, session_id: &SessionId) {
+        self.authenticator.revoke(session_id);
+    }
+
+    /// Check whether a session has been authenticated.
+    pub fn is_session_authenticated(&self, session_id: &SessionId) -> bool {
+        self.authenticator.is_authenticated(session_id)
+    }
+
+    /// Return the auth info for a session if authenticated.
+    pub fn get_session_auth(&self, session_id: &SessionId) -> Option<AuthInfo> {
+        self.authenticator.get_auth(session_id)
+    }
+
+    /// Check whether an authenticated session holds a specific role.
+    pub fn session_has_role(&self, session_id: &SessionId, role: &str) -> bool {
+        self.authenticator.has_role(session_id, role)
+    }
+
+    /// Bind a connection to an existing session identified by `token_hash`.
+    ///
+    /// The caller is responsible for hashing the raw token (e.g. SHA-256) before
+    /// calling this method. Returns the matched `SessionId` on success.
+    pub fn bind_connection_with_token(
+        &self,
+        token_hash: &str,
+        conn_id: ConnectionId,
+        role: ConnectionRole,
+    ) -> Result<SessionId> {
+        let session_id = self
+            .authenticator
+            .find_session_by_token_hash(token_hash)
+            .ok_or_else(|| Error::Unauthorized("no session found for token".into()))?;
+        self.bind_connection(&session_id, conn_id, role)?;
+        Ok(session_id)
+    }
 }
 
 // ────────────────────────────────────────────────────────
@@ -679,6 +730,44 @@ mod tests {
             err.to_string().contains("draining"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn test_bind_connection_with_token() {
+        use crate::session_auth::AuthInfo;
+        use chrono::Utc;
+
+        let manager = make_manager();
+        let client_id = ClientId::new();
+        let session_id = manager.create_session(client_id);
+
+        // Authenticate session with a known token_hash
+        let info = AuthInfo {
+            user_id: "user1".into(),
+            roles: vec!["player".into()],
+            authenticated_at: Utc::now(),
+            token_hash: "test_token_hash".into(),
+        };
+        manager.authenticate_session(&session_id, info);
+
+        // Bind a new connection using the token_hash
+        let conn_id = ConnectionId::new();
+        let found_sid = manager
+            .bind_connection_with_token("test_token_hash", conn_id.clone(), ConnectionRole::Notification)
+            .unwrap();
+
+        assert_eq!(found_sid, session_id);
+        assert_eq!(manager.get_session_by_connection(&conn_id), Some(session_id));
+    }
+
+    #[test]
+    fn test_bind_connection_with_invalid_token() {
+        let manager = make_manager();
+        let conn_id = ConnectionId::new();
+        let result = manager.bind_connection_with_token("no_such_token", conn_id, ConnectionRole::Notification);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Unauthorized") || err.to_string().contains("no session"));
     }
 
     #[test]

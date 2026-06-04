@@ -18,34 +18,34 @@ public class MessagingPlugin
     public event Action<MessageDeletedEvent>?  OnMessageDeleted;
     public event Action<TypingEvent>?          OnTyping;
 
-    public void RegisterListeners()   => _client.SubscribeCategory("msg", HandleMsgEvent);
-    public void UnregisterListeners() => _client.UnsubscribeCategory("msg", HandleMsgEvent);
+    public void RegisterListeners()   => _client.SubscribeCategory("messaging", HandleMsgEvent);
+    public void UnregisterListeners() => _client.UnsubscribeCategory("messaging", HandleMsgEvent);
 
     // ── Request API ───────────────────────────────────────────────────────────
 
     public Task<SendMessageResponse?> SendMessageAsync(
         string channelId, string text, string? replyToId = null, CancellationToken ct = default)
         => _client.RequestAsync<SendMessageResponse>(
-            "msg.send", new { channel_id = channelId, text, reply_to_id = replyToId }, ct);
+            "messaging.send_message", new { channel_id = channelId, text, reply_to_id = replyToId }, ct);
 
     public Task<MessageHistoryResponse?> GetHistoryAsync(
         string channelId, int limit = 50, string? before = null, CancellationToken ct = default)
         => _client.RequestAsync<MessageHistoryResponse>(
-            "msg.history", new { channel_id = channelId, limit, before }, ct);
+            "messaging.get_history", new { channel_id = channelId, limit, before }, ct);
 
     public Task DeleteMessageAsync(string messageId, CancellationToken ct = default)
-        => _client.RequestAsync<object>("msg.delete", new { message_id = messageId }, ct);
+        => _client.RequestAsync<object>("messaging.delete_message", new { message_id = messageId }, ct);
 
     public Task<MessageDto?> EditMessageAsync(
         string messageId, string newText, CancellationToken ct = default)
         => _client.RequestAsync<MessageDto>(
-            "msg.edit", new { message_id = messageId, text = newText }, ct);
+            "messaging.edit_message", new { message_id = messageId, text = newText }, ct);
 
     public Task SendTypingAsync(string channelId, CancellationToken ct = default)
-        => _client.SendAsync("msg.typing", new { channel_id = channelId }, ct);
+        => _client.SendAsync("messaging.typing", new { channel_id = channelId }, ct);
 
     public Task ReactAsync(string messageId, string emoji, CancellationToken ct = default)
-        => _client.RequestAsync<object>("msg.react", new { message_id = messageId, emoji }, ct);
+        => _client.RequestAsync<object>("messaging.react", new { message_id = messageId, emoji }, ct);
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
@@ -53,9 +53,10 @@ public class MessagingPlugin
     {
         switch (evt.Name)
         {
-            case "received": OnMessage?.Invoke(evt.Data<MessageReceivedEvent>()!); break;
-            case "deleted":  OnMessageDeleted?.Invoke(evt.Data<MessageDeletedEvent>()!); break;
-            case "typing":   OnTyping?.Invoke(evt.Data<TypingEvent>()!); break;
+            case "message_sent":   OnMessage?.Invoke(evt.Data<MessageReceivedEvent>()!); break;
+            case "message_edited": OnMessage?.Invoke(evt.Data<MessageReceivedEvent>()!); break;
+            case "message_deleted":OnMessageDeleted?.Invoke(evt.Data<MessageDeletedEvent>()!); break;
+            case "typing_started": OnTyping?.Invoke(evt.Data<TypingEvent>()!); break;
         }
     }
 }

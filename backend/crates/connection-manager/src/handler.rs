@@ -1,7 +1,7 @@
 use crate::manager::SessionManager;
-use server_core::{ClientId, ConnectionId, ConnectionInfo, ConnectionRole, Error};
+use server_core::{ClientId, ConnectionId, ConnectionInfo, ConnectionRole, Error, SessionId};
 use socket_server::handler::{BoxFuture, ConnectionHandler};
-use socket_server::ConnectionTracker;
+use socket_server::{ConnectionTracker, OutgoingMessage};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
@@ -11,8 +11,6 @@ use tracing::{debug, error, info, warn};
 /// and translates raw connection events into session lifecycle operations.
 pub struct SessionHandler {
     manager: Arc<SessionManager>,
-    // Retained for future use: sending data back to connections, updating state, etc.
-    #[allow(dead_code)]
     tracker: Arc<ConnectionTracker>,
 }
 
@@ -20,6 +18,25 @@ impl SessionHandler {
     /// Create a new SessionHandler.
     pub fn new(manager: Arc<SessionManager>, tracker: Arc<ConnectionTracker>) -> Self {
         Self { manager, tracker }
+    }
+
+    /// Send a message to every connection in a session.
+    ///
+    /// Returns the number of connections that accepted the message.
+    /// Used to push authoritative state updates after `SessionAuthority::validate_and_apply`.
+    pub async fn broadcast_to_session(&self, session_id: &SessionId, msg: OutgoingMessage) -> usize {
+        let conn_ids = match self.manager.get_session(session_id) {
+            Some(session) => session.connections.keys().cloned().collect::<Vec<_>>(),
+            None => return 0,
+        };
+
+        let mut sent = 0;
+        for conn_id in conn_ids {
+            if self.tracker.send(&conn_id, msg.clone()).await.is_ok() {
+                sent += 1;
+            }
+        }
+        sent
     }
 }
 
@@ -53,15 +70,13 @@ impl ConnectionHandler for SessionHandler {
 
     /// Called when binary data is received.
     ///
-    /// Touches the session to update last_activity.
-    fn on_data<'a>(&'a self, conn_id: &'a ConnectionId, _data: &'a [u8]) -> BoxFuture<'a, ()> {
+    /// Records bytes received into the per-session metrics counter.
+    fn on_data<'a>(&'a self, conn_id: &'a ConnectionId, data: &'a [u8]) -> BoxFuture<'a, ()> {
         Box::pin(async move {
             if let Some(session_id) = self.manager.get_session_by_connection(conn_id) {
-                // The tracker already updates last_activity on the ConnectionInfo.
-                // Session-level touch will be done when needed via session manager.
-                let _ = session_id;
+                self.manager.record_bytes_in(&session_id, data.len() as u64);
             }
-            debug!(conn_id = %conn_id, "data received, session touched");
+            debug!(conn_id = %conn_id, bytes = data.len(), "data received");
         })
     }
 

@@ -20,6 +20,9 @@ serde_json.workspace = true
 notify.workspace = true
 axum.workspace = true
 socket-server.workspace = true
+connection-manager.workspace = true
+jsonwebtoken.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

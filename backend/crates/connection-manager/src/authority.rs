@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use server_core::{Result, Error, SessionId};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 
 /// The canonical, server-owned state for one session.
 ///
@@ -42,11 +43,17 @@ impl AuthoritativeState {
 /// Each session gets its own [`AuthoritativeState`] plus a dedicated
 /// [`AtomicU64`] version counter. The counter is the source of truth for
 /// the current version; the stored state's `version` field mirrors it.
+///
+/// An optional listener registered via [`set_state_change_listener`] is invoked
+/// after every successful [`validate_and_apply`] so callers can broadcast the
+/// updated state to all session connections.
 pub struct SessionAuthority {
     /// session_id → current authoritative state.
     states: DashMap<SessionId, AuthoritativeState>,
     /// session_id → version counter (always in sync with `states[id].version`).
     version_counters: DashMap<SessionId, AtomicU64>,
+    /// Optional callback triggered after each state mutation.
+    on_state_change: OnceLock<Arc<dyn Fn(SessionId, AuthoritativeState) + Send + Sync>>,
 }
 
 impl SessionAuthority {
@@ -55,7 +62,19 @@ impl SessionAuthority {
         Self {
             states: DashMap::new(),
             version_counters: DashMap::new(),
+            on_state_change: OnceLock::new(),
         }
+    }
+
+    /// Register a listener that is called after every successful state mutation.
+    ///
+    /// The listener receives a clone of the session ID and the updated state.
+    /// Can only be set once; subsequent calls are silently ignored.
+    pub fn set_state_change_listener<F>(&self, f: F)
+    where
+        F: Fn(SessionId, AuthoritativeState) + Send + Sync + 'static,
+    {
+        let _ = self.on_state_change.set(Arc::new(f));
     }
 
     /// Initialise canonical state for a newly created session.
@@ -114,6 +133,12 @@ impl SessionAuthority {
         state.data.insert(key.to_string(), value);
         state.version = new_version;
         state.last_updated = Utc::now();
+        let snapshot = state.clone();
+        drop(state);
+
+        if let Some(cb) = self.on_state_change.get() {
+            cb(session_id.clone(), snapshot);
+        }
 
         Ok(new_version)
     }
@@ -229,6 +254,30 @@ mod tests {
         // Applying after removal should fail.
         let result = auth.validate_and_apply(&sid, "k", json!(1));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_state_change_listener_called() {
+        use std::sync::Mutex;
+
+        let auth = SessionAuthority::new();
+        let sid = SessionId::new();
+        auth.create_state(&sid);
+
+        let received: Arc<Mutex<Vec<(SessionId, u64)>>> = Arc::new(Mutex::new(vec![]));
+        let received_clone = Arc::clone(&received);
+
+        auth.set_state_change_listener(move |s, state| {
+            received_clone.lock().unwrap().push((s, state.version));
+        });
+
+        auth.validate_and_apply(&sid, "x", json!(1)).unwrap();
+        auth.validate_and_apply(&sid, "y", json!(2)).unwrap();
+
+        let calls = received.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].1, 2); // version after first apply
+        assert_eq!(calls[1].1, 3); // version after second apply
     }
 
     #[test]

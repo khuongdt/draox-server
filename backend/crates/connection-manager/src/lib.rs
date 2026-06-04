@@ -1,3 +1,4 @@
+pub mod auth_handler;
 pub mod authority;
 pub mod failover;
 pub mod handoff;
@@ -8,7 +9,9 @@ pub mod manager;
 pub mod session;
 pub mod session_auth;
 pub mod session_rate_limit;
+pub mod wire;
 
+pub use auth_handler::AuthHandler;
 pub use authority::{AuthoritativeState, SessionAuthority};
 pub use failover::{FailoverManager, FailoverPolicy};
 pub use handoff::{HandoffManager, HandoffToken};
@@ -19,3 +22,4 @@ pub use manager::{SessionManager, SessionMetrics, SessionMetricsSnapshot};
 pub use session::{ClientSession, SessionInfo};
 pub use session_auth::{AuthInfo, SessionAuthenticator};
 pub use session_rate_limit::SessionRateLimiter;
+pub use wire::{WireRequest, WireResponse};

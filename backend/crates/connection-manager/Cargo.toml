@@ -17,3 +17,5 @@ chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
+jsonwebtoken.workspace = true
+sha2.workspace = true
