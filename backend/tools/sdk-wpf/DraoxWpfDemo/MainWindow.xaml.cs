@@ -48,6 +48,7 @@ public partial class MainWindow : Window
         _client = new DraoxClient(config);
         _client.OnStateChanged  += s => UpdateStatus(s);
         _client.OnDisconnected  += r => AddSystem($"Disconnected: {r}");
+        _client.OnError         += msg => AddSystem($"Error: {msg}", isError: true);
         _client.OnAuthenticated += () =>
         {
             TxtSession.Text = $"Session: {_client?.SessionId?[..8]}…";
@@ -57,10 +58,12 @@ public partial class MainWindow : Window
                 : "";
         };
 
+        // Step 1: establish TCP/WebSocket connection
         try
         {
+            AddSystem($"[1/3] Connecting to {config.Host}:{config.Port} ({config.Protocol})…");
             await _client.ConnectAsync();
-            AddSystem($"Connected to {config.Host}:{config.Port} ({config.Protocol})");
+            AddSystem($"[1/3] Connected.");
         }
         catch (Exception ex)
         {
@@ -72,6 +75,10 @@ public partial class MainWindow : Window
 
         try
         {
+            // Step 2: HTTP POST to Admin API to obtain JWT
+            AddSystem($"[2/3] Logging in via HTTP (port {config.AdminPort})…");
+            // Step 3: send AUTH token over TCP to bind session
+            AddSystem($"[3/3] Authenticating over {config.Protocol}…");
             await _client.LoginAsync(username, password);
             _myUserId = username;
 
@@ -81,7 +88,7 @@ public partial class MainWindow : Window
             _messaging.OnTyping         += OnTyping;
             _messaging.RegisterListeners();
 
-            AddSystem($"Logged in as '{_myUserId}'");
+            AddSystem($"Logged in as '{_myUserId}'. Session ready.");
             BtnLogout.IsEnabled = true;
             SetInputEnabled(true);
         }
@@ -259,6 +266,13 @@ public partial class MainWindow : Window
         TxtInput.IsEnabled   = enabled;
         BtnSend.IsEnabled    = enabled;
         BtnHistory.IsEnabled = enabled;
+    }
+
+    // Auto-switch port when protocol selection changes (WS=9002, TCP=9000).
+    private void CmbProtocol_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (TxtPort is null) return;
+        TxtPort.Text = CmbProtocol.SelectedIndex == 1 ? "9000" : "9002";
     }
 
     private static string Now() => DateTime.Now.ToString("HH:mm:ss");

@@ -130,7 +130,8 @@
           <TextBlock Text="Protocol" Style="{StaticResource Label}"/>
           <ComboBox x:Name="CmbProtocol" SelectedIndex="0"
                     Background="#313244" Foreground="#CDD6F4"
-                    BorderBrush="#45475A" Padding="8,5" FontSize="13">
+                    BorderBrush="#45475A" Padding="8,5" FontSize="13"
+                    SelectionChanged="CmbProtocol_SelectionChanged">
             <ComboBoxItem Content="WebSocket"/>
             <ComboBoxItem Content="TCP"/>
           </ComboBox>
