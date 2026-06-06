@@ -55,6 +55,12 @@ backend/logs/
 desktop.ini
 
 # ===========================
+# .NET build artifacts
+# ===========================
+backend/tools/sdk-wpf/**/bin/
+backend/tools/sdk-wpf/**/obj/
+
+# ===========================
 # Packages / Binaries
 # ===========================
 *.dxp
