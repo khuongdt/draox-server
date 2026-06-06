@@ -44,12 +44,12 @@
                 <TextBlock Text="SERVER CONFIGURATION" FontSize="11" FontWeight="SemiBold"
                            Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,12"/>
 
-                <!-- Host + Port -->
-                <Grid Margin="0,0,0,10">
+                <!-- Host + Port row -->
+                <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="72"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="Host" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
@@ -57,63 +57,106 @@
                                  Style="{StaticResource TextBoxDark}"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="Admin Port" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding AdminPort, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBlock Text="Port" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding CurrentPort, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource TextBoxDark}"/>
                     </StackPanel>
                 </Grid>
 
                 <!-- Protocol selector -->
-                <TextBlock Text="Protocol" Style="{StaticResource LabelMuted}" Margin="0,0,0,8"/>
+                <TextBlock Text="Protocol" Style="{StaticResource LabelMuted}" Margin="0,0,0,6"/>
                 <StackPanel Margin="0,0,0,4">
-                    <RadioButton Content="TCP" IsChecked="{Binding ProtocolTcp}"
-                                 Style="{StaticResource RadioButtonDark}" GroupName="proto">
-                        <RadioButton.ToolTip>
-                            <StackPanel>
-                                <TextBlock Text="TCP — Reliable, newline-delimited JSON"/>
-                                <TextBlock Text="{Binding TcpPort, StringFormat='Port: {0}'}"
-                                           Foreground="{StaticResource BrushTextMuted}"/>
+
+                    <!-- TCP — GroupName removed; mutual exclusion handled by ViewModel -->
+                    <RadioButton IsChecked="{Binding ProtocolTcp}"
+                                 Style="{StaticResource RadioButtonDark}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="TCP" FontWeight="SemiBold" FontSize="13"/>
+                                <TextBlock Text="Reliable · ordered delivery"
+                                           FontSize="11" Foreground="{StaticResource BrushTextMuted}"
+                                           Margin="0,2,0,0"/>
                             </StackPanel>
-                        </RadioButton.ToolTip>
-                    </RadioButton>
-                    <RadioButton Content="WebSocket" IsChecked="{Binding ProtocolWs}"
-                                 Style="{StaticResource RadioButtonDark}" GroupName="proto" Margin="0,2">
-                        <RadioButton.ToolTip>
-                            <StackPanel>
-                                <TextBlock Text="WebSocket — Frame-based JSON, browser-friendly"/>
-                                <TextBlock Text="{Binding WsPort, StringFormat='Port: {0}'}"
-                                           Foreground="{StaticResource BrushTextMuted}"/>
-                            </StackPanel>
-                        </RadioButton.ToolTip>
-                    </RadioButton>
-                    <RadioButton Content="UDP  ⚠" IsChecked="{Binding ProtocolUdp}"
-                                 Style="{StaticResource RadioButtonDark}" GroupName="proto" Margin="0,2">
-                        <RadioButton.ToolTip>
-                            <StackPanel>
-                                <TextBlock Text="UDP — Stateless, no session resume, no heartbeat"/>
-                                <TextBlock Text="{Binding UdpPort, StringFormat='Port: {0}'}"
-                                           Foreground="{StaticResource BrushTextMuted}"/>
-                            </StackPanel>
-                        </RadioButton.ToolTip>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding TcpPort, StringFormat=':{0}'}"
+                                       FontFamily="Consolas" FontSize="12"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </Grid>
                     </RadioButton>
 
-                    <!-- UDP warning -->
-                    <Border Background="#33FAA61A" CornerRadius="4" Padding="8,6" Margin="0,6,0,0"
+                    <!-- WebSocket -->
+                    <RadioButton IsChecked="{Binding ProtocolWs}"
+                                 Style="{StaticResource RadioButtonDark}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="WebSocket" FontWeight="SemiBold" FontSize="13"/>
+                                <TextBlock Text="Frame-based · browser-friendly"
+                                           FontSize="11" Foreground="{StaticResource BrushTextMuted}"
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding WsPort, StringFormat=':{0}'}"
+                                       FontFamily="Consolas" FontSize="12"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </Grid>
+                    </RadioButton>
+
+                    <!-- UDP -->
+                    <RadioButton IsChecked="{Binding ProtocolUdp}"
+                                 Style="{StaticResource RadioButtonDark}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="UDP" FontWeight="SemiBold" FontSize="13"/>
+                                    <Border Background="#33FAA61A" CornerRadius="3"
+                                            Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="⚠ limited" FontSize="10"
+                                                   Foreground="{StaticResource BrushWarning}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="Stateless · no session resume"
+                                           FontSize="11" Foreground="{StaticResource BrushTextMuted}"
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding UdpPort, StringFormat=':{0}'}"
+                                       FontFamily="Consolas" FontSize="12"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </Grid>
+                    </RadioButton>
+
+                    <!-- UDP warning banner -->
+                    <Border Background="#22FAA61A" CornerRadius="4" Padding="10,7" Margin="2,4,2,0"
                             Visibility="{Binding ShowUdpWarning, Converter={StaticResource BoolVis}}">
-                        <TextBlock Text="⚠  UDP: no guaranteed delivery, no session resume."
+                        <TextBlock Text="UDP has no guaranteed delivery, no heartbeat, and no session resume. Use TCP or WebSocket for reliable communication."
                                    Foreground="{StaticResource BrushWarning}" FontSize="11"
-                                   TextWrapping="Wrap"/>
+                                   TextWrapping="Wrap" LineHeight="16"/>
                     </Border>
                 </StackPanel>
 
                 <!-- TLS toggle -->
                 <CheckBox Content="Use TLS / HTTPS" IsChecked="{Binding UseTls}"
-                          Style="{StaticResource CheckBoxDark}" Margin="0,8,0,0">
+                          Style="{StaticResource CheckBoxDark}" Margin="2,10,0,0">
                     <CheckBox.ToolTip>
                         <StackPanel>
-                            <TextBlock Text="Admin API → https://host:AdminPort"/>
-                            <TextBlock Text="TCP → TLS-wrapped on same port"/>
-                            <TextBlock Text="WebSocket → wss://host:WsPort"/>
+                            <TextBlock Text="TCP  →  TLS on port 9000"/>
+                            <TextBlock Text="WebSocket  →  wss:// on port 9002"/>
+                            <TextBlock Text="Admin API  →  https:// on port 9100"/>
                         </StackPanel>
                     </CheckBox.ToolTip>
                 </CheckBox>

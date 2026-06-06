@@ -13,7 +13,6 @@ public partial class LoginViewModel : ObservableObject
     private readonly SocketService _socket;
 
     [ObservableProperty] private string _host = "localhost";
-    [ObservableProperty] private string _adminPort = "9100";
     [ObservableProperty] private string _tcpPort = "9000";
     [ObservableProperty] private string _udpPort = "9001";
     [ObservableProperty] private string _wsPort = "9002";
@@ -27,10 +26,44 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty] private bool _isError = false;
     [ObservableProperty] private bool _showUdpWarning = false;
 
-    public string Password { get; set; } = string.Empty;
+    private string _password = string.Empty;
+    public string Password
+    {
+        get => _password;
+        set { _password = value; ConnectCommand.NotifyCanExecuteChanged(); }
+    }
+
+    // Auto-switches to the active protocol's port; settable to override per-protocol
+    public string CurrentPort
+    {
+        get => ProtocolWs ? WsPort : ProtocolUdp ? UdpPort : TcpPort;
+        set
+        {
+            if (ProtocolWs) WsPort = value;
+            else if (ProtocolUdp) UdpPort = value;
+            else TcpPort = value;
+            OnPropertyChanged();
+        }
+    }
+
+    partial void OnProtocolTcpChanged(bool value)
+    {
+        if (value) { ProtocolWs = false; ProtocolUdp = false; ShowUdpWarning = false; }
+        OnPropertyChanged(nameof(CurrentPort));
+    }
+
+    partial void OnProtocolWsChanged(bool value)
+    {
+        if (value) { ProtocolTcp = false; ProtocolUdp = false; ShowUdpWarning = false; }
+        OnPropertyChanged(nameof(CurrentPort));
+    }
 
     partial void OnProtocolUdpChanged(bool value)
-        => ShowUdpWarning = value;
+    {
+        ShowUdpWarning = value;
+        if (value) { ProtocolTcp = false; ProtocolWs = false; }
+        OnPropertyChanged(nameof(CurrentPort));
+    }
 
     public LoginViewModel(AppState state, ApiService api, SocketService socket)
     {
@@ -50,10 +83,10 @@ public partial class LoginViewModel : ObservableObject
         {
             // Apply config to AppState
             _state.Host = Host.Trim();
-            _state.AdminPort = int.TryParse(AdminPort, out var ap) ? ap : 9100;
             _state.TcpPort = int.TryParse(TcpPort, out var tp) ? tp : 9000;
             _state.UdpPort = int.TryParse(UdpPort, out var up) ? up : 9001;
             _state.WsPort = int.TryParse(WsPort, out var wp) ? wp : 9002;
+            // AdminPort stays at AppState default (9100)
             _state.UseTls = UseTls;
             _state.Protocol = ProtocolWs ? DraoxProtocol.WebSocket
                             : ProtocolUdp ? DraoxProtocol.Udp
