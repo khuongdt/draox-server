@@ -1,0 +1,30 @@
+<Window x:Class="DraoxDemo.Views.EditMessageDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Edit Message"
+        Width="440" Height="180"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BrushSurface}"
+        Foreground="{StaticResource BrushText}"
+        FontFamily="{StaticResource FontMain}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Edit Message" Style="{StaticResource LabelBold}"/>
+        <TextBox Grid.Row="2" x:Name="TextEdit" Style="{StaticResource TextBoxDark}"
+                 AcceptsReturn="False" TextWrapping="Wrap"/>
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Style="{StaticResource ButtonGhost}" Padding="14,8"
+                    Margin="0,0,8,0" Click="Cancel_Click"/>
+            <Button Content="Save" Style="{StaticResource ButtonAccent}" Padding="14,8"
+                    Click="Save_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

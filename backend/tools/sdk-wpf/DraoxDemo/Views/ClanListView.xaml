@@ -1,0 +1,153 @@
+<UserControl x:Class="DraoxDemo.Views.ClanListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:DraoxDemo.Converters"
+             Background="{StaticResource BrushElevated}">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <conv:StringNotEmptyToVisibilityConverter x:Key="StrVis"/>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Top bar -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource BrushSurface}"
+                BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="200"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Clans" FontSize="18" FontWeight="Bold"
+                           Foreground="{StaticResource BrushText}" VerticalAlignment="Center"/>
+                <Border Grid.Column="2" Background="{StaticResource BrushInput}" CornerRadius="4">
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource BrushText}" Padding="10,6"
+                             CaretBrush="{StaticResource BrushText}" VerticalAlignment="Center"/>
+                </Border>
+                <Button Grid.Column="4" Content="+ New Clan" Command="{Binding ToggleCreatePanelCommand}"
+                        Style="{StaticResource ButtonAccent}" Padding="14,8"/>
+            </Grid>
+        </Border>
+
+        <!-- Error banner -->
+        <Border DockPanel.Dock="Top" Background="#33ED4245" Padding="12,6"
+                Visibility="{Binding ErrorMessage, Converter={StaticResource StrVis}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource BrushDanger}" FontSize="12"/>
+        </Border>
+
+        <!-- Create panel -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource BrushSurface}"
+                Padding="16,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1"
+                Visibility="{Binding ShowCreatePanel, Converter={StaticResource BoolVis}}">
+            <StackPanel>
+                <TextBlock Text="New Clan" Style="{StaticResource LabelBold}" Margin="0,0,0,10"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Style="{StaticResource TextBoxDark}"
+                             Text="{Binding NewClanName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Clan name"/>
+                    <TextBox Grid.Column="2" Style="{StaticResource TextBoxDark}"
+                             Text="{Binding NewClanTag, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="4" ToolTip="Tag (max 4 chars, e.g. MC)"/>
+                    <Button Grid.Column="4" Content="Create" Command="{Binding CreateCommand}"
+                            Style="{StaticResource ButtonAccent}" Padding="14,8"/>
+                    <Button Grid.Column="6" Content="Cancel" Command="{Binding ToggleCreatePanelCommand}"
+                            Style="{StaticResource ButtonGhost}" Padding="14,8"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Clan grid -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16,8">
+                <TextBlock Text="Loading..." Foreground="{StaticResource BrushTextMuted}"
+                           Margin="0,12" Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
+
+                <ItemsControl ItemsSource="{Binding FilteredClans}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource BrushSurface}" CornerRadius="8"
+                                    Width="180" Margin="0,0,12,12" Padding="16,14"
+                                    Cursor="Hand">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource BrushHover}"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <!-- Tag icon -->
+                                    <Border Background="{StaticResource BrushAccent}" CornerRadius="8"
+                                            Width="48" Height="48" HorizontalAlignment="Center" Margin="0,0,0,8">
+                                        <TextBlock Text="{Binding Tag}" FontSize="16" FontWeight="Bold"
+                                                   Foreground="White" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <!-- Name -->
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource LabelBold}"
+                                               HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <!-- Member count -->
+                                    <TextBlock HorizontalAlignment="Center" Margin="0,4,0,8">
+                                        <Run Text="{Binding MemberCount}"/>
+                                        <Run Text="/50 👥" Foreground="{StaticResource BrushTextMuted}"/>
+                                    </TextBlock>
+                                    <!-- Actions -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <Button Style="{StaticResource ButtonGhost}" Padding="8,5" Margin="0,0,4,0"
+                                                Visibility="{Binding IsMember, Converter={StaticResource InvBoolVis}}"
+                                                Command="{Binding DataContext.JoinCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding Id}">
+                                            <TextBlock Text="Join" Foreground="{StaticResource BrushSuccess}"/>
+                                        </Button>
+                                        <Button Style="{StaticResource ButtonGhost}" Padding="8,5" Margin="0,0,4,0"
+                                                Visibility="{Binding IsMember, Converter={StaticResource BoolVis}}"
+                                                Command="{Binding DataContext.LeaveCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding Id}">
+                                            <TextBlock Text="Leave" Foreground="{StaticResource BrushTextMuted}"/>
+                                        </Button>
+                                        <Button Style="{StaticResource ButtonAccent}" Padding="8,5" Margin="0,0,4,0"
+                                                Command="{Binding DataContext.OpenDetailCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="→"/>
+                                        </Button>
+                                        <Button Style="{StaticResource ButtonGhost}" Padding="6,5"
+                                                Command="{Binding DataContext.DeleteCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding Id}">
+                                            <TextBlock Text="🗑" Foreground="{StaticResource BrushDanger}"/>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

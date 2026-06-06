@@ -1,0 +1,183 @@
+<Window x:Class="DraoxDemo.Views.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DraoxDemo.ViewModels"
+        xmlns:conv="clr-namespace:DraoxDemo.Converters"
+        Title="Draox Demo — Login"
+        Width="480" Height="600"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{StaticResource BrushBackground}"
+        Foreground="{StaticResource BrushText}"
+        FontFamily="{StaticResource FontMain}">
+
+    <Window.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+    </Window.Resources>
+
+    <Grid Margin="40,32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="24"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="24"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="24"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center">
+            <TextBlock Text="◈ DRAOX DEMO" FontSize="28" FontWeight="Bold"
+                       Foreground="{StaticResource BrushAccent}" HorizontalAlignment="Center"/>
+            <TextBlock Text="Socket Demo Client" FontSize="13"
+                       Foreground="{StaticResource BrushTextMuted}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Server Config Box -->
+        <Border Grid.Row="2" Background="{StaticResource BrushSurface}" CornerRadius="8" Padding="16">
+            <StackPanel>
+                <TextBlock Text="SERVER CONFIGURATION" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,12"/>
+
+                <!-- Host + Port -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="80"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Host" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource TextBoxDark}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Admin Port" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding AdminPort, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource TextBoxDark}"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Protocol selector -->
+                <TextBlock Text="Protocol" Style="{StaticResource LabelMuted}" Margin="0,0,0,8"/>
+                <StackPanel Margin="0,0,0,4">
+                    <RadioButton Content="TCP" IsChecked="{Binding ProtocolTcp}"
+                                 Style="{StaticResource RadioButtonDark}" GroupName="proto">
+                        <RadioButton.ToolTip>
+                            <StackPanel>
+                                <TextBlock Text="TCP — Reliable, newline-delimited JSON"/>
+                                <TextBlock Text="{Binding TcpPort, StringFormat='Port: {0}'}"
+                                           Foreground="{StaticResource BrushTextMuted}"/>
+                            </StackPanel>
+                        </RadioButton.ToolTip>
+                    </RadioButton>
+                    <RadioButton Content="WebSocket" IsChecked="{Binding ProtocolWs}"
+                                 Style="{StaticResource RadioButtonDark}" GroupName="proto" Margin="0,2">
+                        <RadioButton.ToolTip>
+                            <StackPanel>
+                                <TextBlock Text="WebSocket — Frame-based JSON, browser-friendly"/>
+                                <TextBlock Text="{Binding WsPort, StringFormat='Port: {0}'}"
+                                           Foreground="{StaticResource BrushTextMuted}"/>
+                            </StackPanel>
+                        </RadioButton.ToolTip>
+                    </RadioButton>
+                    <RadioButton Content="UDP  ⚠" IsChecked="{Binding ProtocolUdp}"
+                                 Style="{StaticResource RadioButtonDark}" GroupName="proto" Margin="0,2">
+                        <RadioButton.ToolTip>
+                            <StackPanel>
+                                <TextBlock Text="UDP — Stateless, no session resume, no heartbeat"/>
+                                <TextBlock Text="{Binding UdpPort, StringFormat='Port: {0}'}"
+                                           Foreground="{StaticResource BrushTextMuted}"/>
+                            </StackPanel>
+                        </RadioButton.ToolTip>
+                    </RadioButton>
+
+                    <!-- UDP warning -->
+                    <Border Background="#33FAA61A" CornerRadius="4" Padding="8,6" Margin="0,6,0,0"
+                            Visibility="{Binding ShowUdpWarning, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="⚠  UDP: no guaranteed delivery, no session resume."
+                                   Foreground="{StaticResource BrushWarning}" FontSize="11"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- TLS toggle -->
+                <CheckBox Content="Use TLS / HTTPS" IsChecked="{Binding UseTls}"
+                          Style="{StaticResource CheckBoxDark}" Margin="0,8,0,0">
+                    <CheckBox.ToolTip>
+                        <StackPanel>
+                            <TextBlock Text="Admin API → https://host:AdminPort"/>
+                            <TextBlock Text="TCP → TLS-wrapped on same port"/>
+                            <TextBlock Text="WebSocket → wss://host:WsPort"/>
+                        </StackPanel>
+                    </CheckBox.ToolTip>
+                </CheckBox>
+            </StackPanel>
+        </Border>
+
+        <!-- Credentials -->
+        <StackPanel Grid.Row="4">
+            <TextBlock Text="Username" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
+            <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource TextBoxDark}" Margin="0,0,0,10"/>
+
+            <TextBlock Text="Password" Style="{StaticResource LabelMuted}" Margin="0,0,0,4"/>
+            <PasswordBox x:Name="PasswordBox" Style="{StaticResource PasswordBoxDark}"
+                         PasswordChanged="PasswordBox_PasswordChanged"/>
+        </StackPanel>
+
+        <!-- Connect Button -->
+        <Button Grid.Row="6"
+                Command="{Binding ConnectCommand}"
+                Style="{StaticResource ButtonAccent}"
+                Height="42" FontSize="15">
+            <Button.Content>
+                <TextBlock>
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="Connect"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsConnecting}" Value="True">
+                                    <Setter Property="Text" Value="Connecting..."/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Button.Content>
+        </Button>
+
+        <!-- Status -->
+        <Border Grid.Row="8" CornerRadius="4" Padding="10,6" Margin="0,4,0,0"
+                Visibility="{Binding StatusMessage, Converter={StaticResource BoolVis}}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Background" Value="#33FFFFFF"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                            <Setter Property="Background" Value="#33ED4245"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsError}" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource BrushDanger}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Border>
+    </Grid>
+</Window>
