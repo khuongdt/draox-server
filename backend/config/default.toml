@@ -71,7 +71,7 @@ reflection_enabled = true
 
 # ==== TLS ====
 [tls]
-enabled = false
+enabled = true
 cert_path = "certs/server.crt"
 key_path = "certs/server.key"
 # ca_path = "certs/ca.crt"      # for mTLS
@@ -141,6 +141,7 @@ session_timeout_secs = 3600
 grace_period_secs = 30
 heartbeat_interval_secs = 30
 heartbeat_timeout_secs = 10
+session_resume_window_secs = 300
 
 # ==== Storage ====
 [storage]

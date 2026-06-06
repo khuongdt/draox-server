@@ -18,6 +18,8 @@ export interface DraoxConfig {
   apiUrl?: string;
   timeoutMs?: number;
   heartbeatIntervalMs?: number;
+  /** Disconnect after this many consecutive missed pongs. Default: 2. */
+  maxMissedHeartbeats?: number;
   reconnect?: ReconnectConfig;
 }
 
@@ -29,6 +31,7 @@ export interface ResolvedConfig {
   apiUrl: string;
   timeoutMs: number;
   heartbeatIntervalMs: number;
+  maxMissedHeartbeats: number;
   reconnect: Required<ReconnectConfig>;
 }
 

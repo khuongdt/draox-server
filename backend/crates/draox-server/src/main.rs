@@ -7,6 +7,7 @@ use billing::UsageTracker;
 use cache_layer::create_cache_backend;
 use connection_manager::{AuthHandler, SessionManager};
 use connection_manager::handler::SessionHandler;
+use connection_manager::heartbeat_manager::HeartbeatManager;
 use data_store::create_storage_backend;
 use grpc_api::{GrpcServer, GrpcState};
 use plugin_clans::ClansPlugin;
@@ -82,14 +83,20 @@ async fn main() -> anyhow::Result<()> {
         Arc::clone(&session_manager),
         Arc::clone(&connection_tracker),
     ));
+    let heartbeat_manager = Arc::new(HeartbeatManager::new(
+        std::time::Duration::from_secs(config.sessions.heartbeat_interval_secs),
+        std::time::Duration::from_secs(config.sessions.heartbeat_timeout_secs),
+    ));
     let auth_handler = Arc::new(AuthHandler::new(
         session_handler,
         None, // ws_dispatcher wired below after PluginWsDispatcher is created
         Arc::clone(&session_manager),
         Arc::clone(&connection_tracker),
+        Arc::clone(&heartbeat_manager),
         jwt_secret.clone(),
         config.wire_protocol.require_auth,
         std::time::Duration::from_secs(config.wire_protocol.auth_timeout_secs),
+        std::time::Duration::from_secs(config.sessions.session_resume_window_secs),
         config.wire_protocol.frame_delimiter.as_bytes().to_vec(),
     ));
     let _auth_timeout_task = Arc::clone(&auth_handler).start_timeout_task();

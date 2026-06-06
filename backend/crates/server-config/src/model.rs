@@ -274,7 +274,7 @@ pub struct TlsConfig {
 impl Default for TlsConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             cert_path: PathBuf::from("certs/server.crt"),
             key_path: PathBuf::from("certs/server.key"),
             ca_path: None,
@@ -486,6 +486,9 @@ pub struct SessionConfig {
     pub grace_period_secs: u64,
     pub heartbeat_interval_secs: u64,
     pub heartbeat_timeout_secs: u64,
+    /// How long after a client disconnects to allow reconnecting with the same JWT
+    /// and resume the existing session instead of creating a new one.
+    pub session_resume_window_secs: u64,
 }
 
 impl Default for SessionConfig {
@@ -496,6 +499,7 @@ impl Default for SessionConfig {
             grace_period_secs: 30,
             heartbeat_interval_secs: 30,
             heartbeat_timeout_secs: 10,
+            session_resume_window_secs: 300,
         }
     }
 }

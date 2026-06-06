@@ -1,6 +1,7 @@
 use crate::handler::ConnectionHandler;
 use crate::http::HttpServer;
 use crate::tcp::TcpServer;
+use crate::tls::create_tls_acceptor;
 use crate::tracker::ConnectionTracker;
 use crate::udp::UdpServer;
 use crate::ws::WsServer;
@@ -10,7 +11,7 @@ use server_core::event::EventBus;
 use server_core::types::ShutdownSignal;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Addresses of all started protocol listeners.
 #[derive(Debug, Default)]
@@ -94,15 +95,33 @@ impl MultiProtocolListener {
         let mut addrs = ListenerAddresses::default();
         let host = &self.config.server.host;
 
+        // Load TLS acceptor once if TLS is enabled
+        let tls_acceptor = if self.config.tls.enabled {
+            match create_tls_acceptor(&self.config.tls) {
+                Ok(a) => Some(a),
+                Err(e) => {
+                    warn!(error = %e, "TLS disabled: failed to load certificates. \
+                          Run backend/scripts/generate-certs.sh (or .ps1) to create dev certs, \
+                          or set tls.enabled = false in config.");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // TCP
         if self.config.tcp.enabled {
-            let tcp = TcpServer::new(
+            let mut tcp = TcpServer::new(
                 self.config.tcp.clone(),
                 host,
                 Arc::clone(&self.tracker),
                 Arc::clone(&self.handler),
                 Arc::clone(&self.event_bus),
             );
+            if let Some(ref acceptor) = tls_acceptor {
+                tcp = tcp.with_tls(acceptor.clone());
+            }
             addrs.tcp = Some(tcp.start(shutdown.subscribe()).await?);
         }
 

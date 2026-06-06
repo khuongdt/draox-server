@@ -48,6 +48,7 @@ export class DraoxClient extends EventEmitter {
       useTls:              config.useTls              ?? false,
       timeoutMs:           config.timeoutMs           ?? 10_000,
       heartbeatIntervalMs: config.heartbeatIntervalMs ?? 30_000,
+      maxMissedHeartbeats: config.maxMissedHeartbeats ?? 2,
       reconnect: {
         enabled:     config.reconnect?.enabled     ?? true,
         maxAttempts: config.reconnect?.maxAttempts ?? 5,
@@ -236,7 +237,7 @@ export class DraoxClient extends EventEmitter {
     this.heartbeat = setInterval(async () => {
       if (!this.transport?.isConnected) { this.stopHeartbeat(); return; }
       this.missedPings++;
-      if (this.missedPings >= 2) { this.onClosed('heartbeat_timeout'); return; }
+      if (this.missedPings >= this.cfg.maxMissedHeartbeats) { this.onClosed('heartbeat_timeout'); return; }
       try {
         await this.transport.send(Serializer.serialize({ type: 'ping', ts: Date.now() }));
       } catch { this.stopHeartbeat(); }

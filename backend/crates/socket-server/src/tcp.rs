@@ -6,11 +6,12 @@ use server_core::types::*;
 use server_core::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpSocket};
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
-use tracing::{debug, error, info};
+use tokio_rustls::TlsAcceptor;
+use tracing::{debug, error, info, warn};
 
 pub struct TcpServer {
     config: TcpConfig,
@@ -18,6 +19,7 @@ pub struct TcpServer {
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    tls_acceptor: Option<Arc<TlsAcceptor>>,
 }
 
 impl TcpServer {
@@ -37,7 +39,14 @@ impl TcpServer {
             tracker,
             handler,
             event_bus,
+            tls_acceptor: None,
         }
+    }
+
+    /// Enable TLS on this server using the provided acceptor.
+    pub fn with_tls(mut self, acceptor: TlsAcceptor) -> Self {
+        self.tls_acceptor = Some(Arc::new(acceptor));
+        self
     }
 
     /// Bind the TCP listener and start accepting connections in a background task.
@@ -47,15 +56,21 @@ impl TcpServer {
         let addr = listener
             .local_addr()
             .map_err(|e| Error::Transport(e.to_string()))?;
-        info!(addr = %addr, "TCP server listening");
+
+        if self.tls_acceptor.is_some() {
+            info!(addr = %addr, "TCP server listening (TLS)");
+        } else {
+            info!(addr = %addr, "TCP server listening (plaintext)");
+        }
 
         let config = self.config;
         let tracker = self.tracker;
         let handler = self.handler;
         let event_bus = self.event_bus;
+        let tls_acceptor = self.tls_acceptor;
 
         tokio::spawn(async move {
-            accept_loop(listener, config, tracker, handler, event_bus, shutdown).await;
+            accept_loop(listener, config, tracker, handler, event_bus, tls_acceptor, shutdown).await;
         });
 
         Ok(addr)
@@ -100,6 +115,7 @@ async fn accept_loop(
     tracker: Arc<ConnectionTracker>,
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
+    tls_acceptor: Option<Arc<TlsAcceptor>>,
     mut shutdown: ShutdownReceiver,
 ) {
     loop {
@@ -139,18 +155,39 @@ async fn accept_loop(
 
                         tracker.update_state(&conn_id, ConnectionState::Established);
 
-                        // Spawn connection task
                         let tracker = Arc::clone(&tracker);
                         let handler = Arc::clone(&handler);
                         let event_bus = Arc::clone(&event_bus);
                         let idle_timeout = Duration::from_secs(config.idle_timeout_secs);
 
-                        tokio::spawn(async move {
-                            connection_task(
-                                stream, conn_id, addr, rx,
-                                tracker, handler, event_bus, idle_timeout,
-                            ).await;
-                        });
+                        if let Some(acceptor) = &tls_acceptor {
+                            let acceptor = Arc::clone(acceptor);
+                            tokio::spawn(async move {
+                                match acceptor.accept(stream).await {
+                                    Ok(tls_stream) => {
+                                        let (reader, writer) = tokio::io::split(tls_stream);
+                                        connection_task(
+                                            Box::new(reader), Box::new(writer),
+                                            conn_id, addr, rx,
+                                            tracker, handler, event_bus, idle_timeout,
+                                        ).await;
+                                    }
+                                    Err(e) => {
+                                        warn!(addr = %addr, error = %e, "TLS handshake failed");
+                                        tracker.unregister(&conn_id);
+                                    }
+                                }
+                            });
+                        } else {
+                            tokio::spawn(async move {
+                                let (reader, writer) = tokio::io::split(stream);
+                                connection_task(
+                                    Box::new(reader), Box::new(writer),
+                                    conn_id, addr, rx,
+                                    tracker, handler, event_bus, idle_timeout,
+                                ).await;
+                            });
+                        }
                     }
                     Err(e) => {
                         error!(error = %e, "TCP accept error");
@@ -166,7 +203,8 @@ async fn accept_loop(
 }
 
 async fn connection_task(
-    stream: tokio::net::TcpStream,
+    mut reader: Box<dyn AsyncRead + Send + Unpin>,
+    mut writer: Box<dyn AsyncWrite + Send + Unpin>,
     conn_id: ConnectionId,
     addr: SocketAddr,
     mut outgoing_rx: mpsc::Receiver<OutgoingMessage>,
@@ -175,7 +213,6 @@ async fn connection_task(
     event_bus: Arc<EventBus>,
     idle_timeout: Duration,
 ) {
-    let (mut reader, mut writer) = stream.into_split();
     let mut buf = vec![0u8; 8192];
 
     let reason = loop {

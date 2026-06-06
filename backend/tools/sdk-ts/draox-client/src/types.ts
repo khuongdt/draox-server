@@ -7,15 +7,16 @@ export interface GrpcConfig {
 }
 
 export interface DraoxConfig {
-  host?:                 string;        // default 'localhost'
-  port?:                 number;        // default 9002 (ws) or 9004 (grpc)
-  adminPort?:            number;        // default 9100 (Admin API port for login)
-  protocol?:             DraoxProtocol; // default 'ws'
-  useTls?:               boolean;       // default false
-  timeoutMs?:            number;        // default 10_000
-  heartbeatIntervalMs?:  number;        // default 30_000
-  reconnect?:            ReconnectConfig;
-  grpc?:                 GrpcConfig;    // gRPC-specific options (protocol='grpc' only)
+  host?:                  string;        // default 'localhost'
+  port?:                  number;        // default 9002 (ws) or 9004 (grpc)
+  adminPort?:             number;        // default 9100 (Admin API port for login)
+  protocol?:              DraoxProtocol; // default 'ws'
+  useTls?:                boolean;       // default false
+  timeoutMs?:             number;        // default 10_000
+  heartbeatIntervalMs?:   number;        // default 30_000
+  maxMissedHeartbeats?:   number;        // default 2 — disconnect after N consecutive missed pongs
+  reconnect?:             ReconnectConfig;
+  grpc?:                  GrpcConfig;    // gRPC-specific options (protocol='grpc' only)
 }
 
 export interface ReconnectConfig {
@@ -34,13 +35,14 @@ export interface DraoxEvent {
 
 // Internal resolved config (all fields required).
 export interface ResolvedConfig {
-  host:                string;
-  port:                number;
-  adminPort:           number;
-  protocol:            DraoxProtocol;
-  useTls:              boolean;
-  timeoutMs:           number;
-  heartbeatIntervalMs: number;
+  host:                 string;
+  port:                 number;
+  adminPort:            number;
+  protocol:             DraoxProtocol;
+  useTls:               boolean;
+  timeoutMs:            number;
+  heartbeatIntervalMs:  number;
+  maxMissedHeartbeats:  number;
   reconnect: {
     enabled:     boolean;
     maxAttempts: number;

@@ -489,6 +489,14 @@ impl SessionManager {
         self.authenticator.has_role(session_id, role)
     }
 
+    /// Look up a session by its token hash.
+    ///
+    /// Used during reconnect to check if a valid session already exists for the
+    /// given token before creating a new one.
+    pub fn find_session_by_token_hash(&self, token_hash: &str) -> Option<SessionId> {
+        self.authenticator.find_session_by_token_hash(token_hash)
+    }
+
     /// Bind a connection to an existing session identified by `token_hash`.
     ///
     /// The caller is responsible for hashing the raw token (e.g. SHA-256) before

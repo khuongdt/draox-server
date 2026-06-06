@@ -13,6 +13,7 @@
 //! **Plugins never see JWT tokens.** They only receive `WsActionContext` with a real
 //! `Identity` populated from the authenticated session.
 
+use crate::heartbeat_manager::{run_heartbeat_task, HeartbeatManager};
 use crate::manager::SessionManager;
 use crate::session_auth::AuthInfo;
 use crate::wire::{TcpJwtClaims, WireRequest, WireResponse};
@@ -20,7 +21,7 @@ use chrono::Utc;
 use dashmap::DashMap;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use server_core::{
-    ConnectionId, ConnectionInfo, Error, Protocol, SessionId,
+    ConnectionId, ConnectionInfo, ConnectionRole, Error, Protocol, SessionId,
 };
 use sha2::{Digest, Sha256};
 use socket_server::{
@@ -43,9 +44,12 @@ pub struct AuthHandler {
     dispatcher: Option<Arc<dyn socket_server::ws_dispatch::WsActionDispatcher>>,
     manager: Arc<SessionManager>,
     tracker: Arc<ConnectionTracker>,
+    heartbeat_manager: Arc<HeartbeatManager>,
     jwt_secret: String,
     require_auth: bool,
     auth_timeout: Duration,
+    /// How long after a disconnect to allow reconnect with the same JWT to resume the session.
+    session_resume_window: Duration,
     /// Delimiter used to separate messages in the TCP stream (admin-configurable).
     delimiter: Vec<u8>,
     /// Connections pending authentication: conn_id → (connect_time, protocol).
@@ -60,9 +64,11 @@ impl AuthHandler {
         dispatcher: Option<Arc<dyn socket_server::ws_dispatch::WsActionDispatcher>>,
         manager: Arc<SessionManager>,
         tracker: Arc<ConnectionTracker>,
+        heartbeat_manager: Arc<HeartbeatManager>,
         jwt_secret: String,
         require_auth: bool,
         auth_timeout: Duration,
+        session_resume_window: Duration,
         delimiter: Vec<u8>,
     ) -> Self {
         Self {
@@ -70,9 +76,11 @@ impl AuthHandler {
             dispatcher,
             manager,
             tracker,
+            heartbeat_manager,
             jwt_secret,
             require_auth,
             auth_timeout,
+            session_resume_window,
             delimiter,
             pending: DashMap::new(),
             tcp_buffers: DashMap::new(),
@@ -213,29 +221,103 @@ impl AuthHandler {
         match self.validate_jwt(&token) {
             Ok(claims) => {
                 let token_hash = Self::sha256_hex(&token);
+
+                // Check if an existing authenticated session uses the same token.
+                // If so, and the session is still within the resume window, migrate
+                // the connection to that session instead of creating a new one.
+                let effective_session_id =
+                    if let Some(existing_sid) = self.manager.find_session_by_token_hash(&token_hash)
+                    {
+                        if existing_sid != *session_id {
+                            // Check last_activity against the resume window
+                            let within_window = self
+                                .manager
+                                .get_session(&existing_sid)
+                                .map(|s| {
+                                    let elapsed = Utc::now()
+                                        .signed_duration_since(s.last_activity)
+                                        .num_seconds();
+                                    elapsed <= self.session_resume_window.as_secs() as i64
+                                })
+                                .unwrap_or(false);
+
+                            if within_window {
+                                // Migrate conn to existing session, destroy temp session
+                                let temp_sid = session_id.clone();
+                                match self.manager.migrate_connection(
+                                    conn_id,
+                                    &existing_sid,
+                                    ConnectionRole::Primary,
+                                ) {
+                                    Ok(()) => {
+                                        // Destroy the temporary session created on connect
+                                        self.manager.destroy_session(&temp_sid, "superseded by reconnect");
+                                        info!(
+                                            conn_id = %conn_id,
+                                            resumed_session = %existing_sid,
+                                            temp_session = %temp_sid,
+                                            "session resumed (reconnect within window)"
+                                        );
+                                        existing_sid
+                                    }
+                                    Err(e) => {
+                                        warn!(conn_id = %conn_id, error = %e, "session resume failed, using new session");
+                                        session_id.clone()
+                                    }
+                                }
+                            } else {
+                                session_id.clone()
+                            }
+                        } else {
+                            session_id.clone()
+                        }
+                    } else {
+                        session_id.clone()
+                    };
+
                 let auth_info = AuthInfo {
                     user_id: claims.sub.clone(),
                     roles: vec![claims.role.clone()],
                     authenticated_at: Utc::now(),
                     token_hash,
                 };
-                self.manager.authenticate_session(session_id, auth_info);
+                // Read protocol before removing from pending
+                let protocol = self
+                    .pending
+                    .get(conn_id)
+                    .map(|e| e.value().1)
+                    .unwrap_or(Protocol::Tcp);
+
+                self.manager.authenticate_session(&effective_session_id, auth_info);
                 self.pending.remove(conn_id);
 
                 info!(
                     conn_id = %conn_id,
-                    session_id = %session_id,
+                    session_id = %effective_session_id,
                     user_id = %claims.sub,
                     role = %claims.role,
                     "connection authenticated"
                 );
+
+                // Spawn server-side heartbeat for TCP/UDP connections.
+                // WebSocket heartbeat is handled natively by the WS layer (ping frames).
+                if matches!(protocol, Protocol::Tcp | Protocol::Udp) {
+                    let hb_mgr = Arc::clone(&self.heartbeat_manager);
+                    let tracker = Arc::clone(&self.tracker);
+                    let hb_conn = conn_id.clone();
+                    let max_missed = self.manager.config().heartbeat_timeout_secs
+                        / self.manager.config().heartbeat_interval_secs.max(1);
+                    tokio::spawn(async move {
+                        run_heartbeat_task(hb_conn, hb_mgr, tracker, max_missed as u32).await;
+                    });
+                }
 
                 use serde_json::json;
                 self.send_response(
                     conn_id,
                     WireResponse::ok(
                         req.id.clone(),
-                        json!({ "session_id": session_id.to_string() }),
+                        json!({ "session_id": effective_session_id.to_string() }),
                     ),
                 )
                 .await;
@@ -449,20 +531,26 @@ mod tests {
     fn make_handler() -> Arc<AuthHandler> {
         let config = SessionConfig::default();
         let event_bus = Arc::new(EventBus::default());
-        let manager = Arc::new(crate::manager::SessionManager::new(config, event_bus));
+        let manager = Arc::new(crate::manager::SessionManager::new(config.clone(), event_bus));
         let tracker = Arc::new(ConnectionTracker::new(100, 10));
         let inner = Arc::new(crate::handler::SessionHandler::new(
             Arc::clone(&manager),
             Arc::clone(&tracker),
+        ));
+        let heartbeat_manager = Arc::new(crate::heartbeat_manager::HeartbeatManager::new(
+            Duration::from_secs(config.heartbeat_interval_secs),
+            Duration::from_secs(config.heartbeat_timeout_secs),
         ));
         Arc::new(AuthHandler::new(
             inner,
             None,
             manager,
             tracker,
+            heartbeat_manager,
             "test-secret".into(),
             true,
             Duration::from_secs(30),
+            Duration::from_secs(300),
             b"\n".to_vec(),
         ))
     }

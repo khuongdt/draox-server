@@ -15,7 +15,11 @@
 
 use dashmap::DashMap;
 use server_core::ConnectionId;
+use socket_server::{ConnectionTracker, OutgoingMessage};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::time::interval;
+use tracing::{debug, warn};
 
 /// Per-connection heartbeat tracking state.
 struct HeartbeatState {
@@ -157,6 +161,62 @@ impl HeartbeatManager {
     #[cfg(test)]
     fn missed_count(&self, conn_id: &ConnectionId) -> Option<u32> {
         self.intervals.get(conn_id).map(|s| s.missed_count)
+    }
+}
+
+/// Background task that sends pings and closes connections that stop responding.
+///
+/// This function owns the heartbeat loop for a single TCP/UDP connection:
+/// - Every `interval` it sends `{"type":"ping","ts":...}` to the client.
+/// - If the client misses `max_missed` consecutive pings the connection is closed.
+/// - The task exits when the connection is unregistered from the `HeartbeatManager`
+///   (i.e. when the connection closes normally) or when `max_missed` is exceeded.
+pub async fn run_heartbeat_task(
+    conn_id: ConnectionId,
+    manager: Arc<HeartbeatManager>,
+    tracker: Arc<ConnectionTracker>,
+    max_missed: u32,
+) {
+    manager.register(conn_id.clone());
+    let mut tick = interval(manager.default_interval);
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    loop {
+        tick.tick().await;
+
+        // Connection was unregistered (closed elsewhere) — stop.
+        if !manager.intervals.contains_key(&conn_id) {
+            break;
+        }
+
+        let missed = manager.check_all();
+        if missed.contains(&conn_id) {
+            let count = manager
+                .intervals
+                .get(&conn_id)
+                .map(|s| s.missed_count)
+                .unwrap_or(0);
+
+            if count >= max_missed {
+                warn!(
+                    conn_id = %conn_id,
+                    missed = count,
+                    "heartbeat timeout — closing connection"
+                );
+                let _ = tracker.send(&conn_id, OutgoingMessage::Close).await;
+                manager.unregister(&conn_id);
+                break;
+            }
+        }
+
+        // Send ping
+        let ping = serde_json::json!({ "type": "ping", "ts": chrono::Utc::now().timestamp_millis() });
+        let bytes = format!("{}\n", ping).into_bytes();
+        if let Err(e) = tracker.send(&conn_id, OutgoingMessage::Binary(bytes)).await {
+            debug!(conn_id = %conn_id, error = %e, "heartbeat: connection gone, stopping");
+            manager.unregister(&conn_id);
+            break;
+        }
     }
 }
 

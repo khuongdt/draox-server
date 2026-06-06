@@ -45,6 +45,7 @@ export class DraoxClient extends Emitter {
       apiUrl:              config.apiUrl              ?? '',
       timeoutMs:           config.timeoutMs           ?? 10_000,
       heartbeatIntervalMs: config.heartbeatIntervalMs ?? 30_000,
+      maxMissedHeartbeats: config.maxMissedHeartbeats ?? 2,
       reconnect: {
         enabled:     config.reconnect?.enabled     ?? true,
         maxAttempts: config.reconnect?.maxAttempts ?? 5,
@@ -220,7 +221,7 @@ export class DraoxClient extends Emitter {
     this.heartbeat = setInterval(() => {
       if (!this.transport.isConnected) { this._stopHeartbeat(); return; }
       this.missedPings++;
-      if (this.missedPings >= 2) { this._onClosed('heartbeat_timeout'); return; }
+      if (this.missedPings >= this.cfg.maxMissedHeartbeats) { this._onClosed('heartbeat_timeout'); return; }
       this.transport.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
     }, this.cfg.heartbeatIntervalMs);
   }
