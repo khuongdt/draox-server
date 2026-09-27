@@ -8,112 +8,26 @@ pub mod server;
 pub mod state;
 pub mod trace_context;
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 pub use server::{AdminServer, AdminServerConfig};
 pub use state::AppState;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use activity_log::metrics::MetricsCollector;
-    use activity_log::{ActivityLog, AuditLog};
-    use auth::JwtConfig;
-    use auth_store::AdminUserStore;
+    use crate::auth::AdminRole;
+    use crate::test_support::{admin_get, admin_request, as_user, make_state};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use billing::UsageTracker;
-    use connection_manager::SessionManager;
-    use plugin_host::{ContextBuilder, FullMarketplaceRegistry, PluginRegistry, RouteRegistry};
-    use server_config::model::{SessionConfig, TrafficGuardConfig};
-    use server_core::event::EventBus;
-    use server_core::{ConnectionId, Error, ServerInfo};
-    use socket_server::handler::{BoxFuture, ConnectionHandler};
-    use socket_server::tracker::ConnectionTracker;
-    use std::sync::Arc;
     use tower::ServiceExt;
-    use traffic_guard::TrafficGuard;
 
-    /// Noop handler for constructing TrafficGuard in tests.
-    struct TestHandler;
-
-    impl ConnectionHandler for TestHandler {
-        fn on_connect<'a>(
-            &'a self,
-            _info: &'a server_core::ConnectionInfo,
-        ) -> BoxFuture<'a, server_core::Result<()>> {
-            Box::pin(async { Ok(()) })
-        }
-
-        fn on_data<'a>(
-            &'a self,
-            _conn_id: &'a ConnectionId,
-            _data: &'a [u8],
-        ) -> BoxFuture<'a, ()> {
-            Box::pin(async {})
-        }
-
-        fn on_disconnect<'a>(
-            &'a self,
-            _conn_id: &'a ConnectionId,
-            _reason: &'a str,
-        ) -> BoxFuture<'a, ()> {
-            Box::pin(async {})
-        }
-
-        fn on_error<'a>(
-            &'a self,
-            _conn_id: &'a ConnectionId,
-            _error: &'a Error,
-        ) -> BoxFuture<'a, ()> {
-            Box::pin(async {})
-        }
-    }
-
-    async fn make_state() -> AppState {
-        let event_bus = Arc::new(EventBus::new(16));
-        let tracker = Arc::new(ConnectionTracker::new(1000, 100));
-        let session_mgr = Arc::new(SessionManager::new(
-            SessionConfig::default(),
-            Arc::clone(&event_bus),
-        ));
-        let guard = Arc::new(TrafficGuard::new(
-            TrafficGuardConfig::default(),
-            Arc::new(TestHandler),
-            Arc::clone(&event_bus),
-        ));
-        let cache: Arc<dyn cache_layer::CacheBackend> = Arc::new(
-            cache_layer::MemoryCache::new(&server_config::model::MemoryCacheConfig::default()),
-        );
-        let storage: Arc<dyn data_store::StorageBackend> = Arc::new(
-            data_store::SqliteStorage::new_in_memory().await.unwrap(),
-        );
-        let auth_store = Arc::new(AdminUserStore::new(Arc::clone(&storage)));
-        let ctx_builder = ContextBuilder::new(ServerInfo::default(), Arc::clone(&event_bus), Arc::clone(&cache));
-        let plugin_registry = Arc::new(PluginRegistry::new(ctx_builder, Arc::clone(&event_bus)));
-        let activity_log = Arc::new(ActivityLog::new(10000));
-        let audit_log = Arc::new(AuditLog::new(10000));
-        let metrics = Arc::new(MetricsCollector::new());
-        let usage_tracker = Arc::new(UsageTracker::new());
-
-        let config = server_config::DraoxConfig::default();
-        AppState {
-            connection_tracker: tracker,
-            session_manager: session_mgr,
-            traffic_guard: guard,
-            plugin_registry,
-            activity_log,
-            metrics,
-            usage_tracker,
-            audit_log,
-            event_bus,
-            marketplace: Arc::new(FullMarketplaceRegistry::new()),
-            route_registry: Arc::new(RouteRegistry::new()),
-            cache,
-            storage,
-            jwt_config: JwtConfig::default(),
-            auth_store,
-            config: Arc::new(std::sync::RwLock::new(config)),
-            config_path: String::new(),
-        }
+    async fn json_body(response: axum::response::Response) -> serde_json::Value {
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&body).unwrap()
     }
 
     #[tokio::test]
@@ -121,6 +35,7 @@ mod tests {
         let state = make_state().await;
         let app = routes::build_router(state).await;
 
+        // Liveness stays public so probes (docker healthcheck) keep working.
         let response = app
             .oneshot(
                 Request::builder()
@@ -132,10 +47,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["success"], true);
         assert_eq!(json["data"]["status"], "ok");
     }
@@ -143,115 +55,72 @@ mod tests {
     #[tokio::test]
     async fn test_info_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/info")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+        let response = app.oneshot(admin_get(&state, "/api/info")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["data"]["name"], "Draox Server");
     }
 
     #[tokio::test]
     async fn test_connections_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/connections")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(admin_get(&state, "/api/connections"))
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["data"]["total"], 0);
     }
 
     #[tokio::test]
     async fn test_sessions_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/sessions")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(admin_get(&state, "/api/sessions"))
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["data"]["total"], 0);
     }
 
     #[tokio::test]
     async fn test_plugins_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/plugins")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(admin_get(&state, "/api/plugins"))
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["data"]["total"], 0);
     }
 
     #[tokio::test]
     async fn test_guard_stats_endpoint() {
         let state = make_state().await;
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/guard/stats")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(admin_get(&state, "/api/guard/stats"))
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["data"]["active_bans"], 0);
     }
 
@@ -264,23 +133,12 @@ mod tests {
         state.metrics.record_bytes_received(1024);
         state.metrics.increment_requests();
 
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/metrics")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+        let response = app.oneshot(admin_get(&state, "/api/metrics")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json = json_body(response).await;
         assert_eq!(json["data"]["connections_active"], 1);
         assert_eq!(json["data"]["bytes_received"], 1024); // renamed via #[serde(rename)]
         assert_eq!(json["data"]["requests_total"], 1);
@@ -289,15 +147,10 @@ mod tests {
     #[tokio::test]
     async fn test_connection_not_found() {
         let state = make_state().await;
-        let app = routes::build_router(state).await;
+        let app = routes::build_router(state.clone()).await;
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/connections/nonexistent")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(admin_get(&state, "/api/connections/nonexistent"))
             .await
             .unwrap();
 
@@ -312,7 +165,7 @@ mod tests {
         let app = routes::build_router(state.clone()).await;
         let response = app
             .oneshot(
-                Request::builder()
+                admin_request(&state)
                     .method("POST")
                     .uri("/api/guard/ban")
                     .header("content-type", "application/json")
@@ -330,7 +183,7 @@ mod tests {
         let app = routes::build_router(state.clone()).await;
         let response = app
             .oneshot(
-                Request::builder()
+                admin_request(&state)
                     .method("POST")
                     .uri("/api/guard/unban")
                     .header("content-type", "application/json")
@@ -342,5 +195,397 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         assert_eq!(state.traffic_guard.ban_manager().active_ban_count(), 0);
+    }
+
+    // ── P0 security regressions ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_admin_routes_require_authentication() {
+        let state = make_state().await;
+        let app = routes::build_router(state).await;
+
+        // Mutations and reads from the report's finding list, plus a WS stream.
+        let cases = [
+            ("GET", "/api/users"),
+            ("POST", "/api/users/viewer/ban"),
+            ("POST", "/api/guard/ban"),
+            ("POST", "/api/plugins/x/activate"),
+            ("GET", "/api/connections"),
+            ("GET", "/api/config"),
+            ("GET", "/api/health/detailed"),
+            ("GET", "/api/info"),
+            ("GET", "/ws/events"),
+        ];
+        for (method, uri) in cases {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .header("content-type", "application/json")
+                        .body(Body::from(r#"{"ip":"10.0.0.9"}"#))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::UNAUTHORIZED,
+                "{method} {uri} must require auth"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_invalid_or_forged_token_is_rejected() {
+        let state = make_state().await;
+        let app = routes::build_router(state.clone()).await;
+
+        let forged = crate::auth::create_jwt_token(
+            "admin",
+            AdminRole::Admin,
+            &crate::auth::JwtConfig {
+                secret: "attacker-secret".into(),
+                expiry_secs: 3600,
+            },
+        )
+        .unwrap();
+        for token in ["garbage", forged.as_str()] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/connections")
+                        .header("authorization", format!("Bearer {token}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_role_enforcement() {
+        let state = make_state().await;
+        let app = routes::build_router(state.clone()).await;
+
+        let call = |username: &'static str, role, method: &'static str, uri: &'static str| {
+            let app = app.clone();
+            let req = as_user(&state, username, role)
+                .method(method)
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"ip":"10.0.0.7"}"#))
+                .unwrap();
+            async move { app.oneshot(req).await.unwrap().status() }
+        };
+
+        // Viewer: read-only.
+        assert_eq!(call("viewer", AdminRole::Viewer, "GET", "/api/connections").await, StatusCode::OK);
+        assert_eq!(call("viewer", AdminRole::Viewer, "POST", "/api/guard/ban").await, StatusCode::FORBIDDEN);
+        assert_eq!(call("viewer", AdminRole::Viewer, "GET", "/api/users").await, StatusCode::FORBIDDEN);
+
+        // Operator: operational writes, but no user/config management.
+        assert_eq!(call("operator", AdminRole::Operator, "POST", "/api/guard/ban").await, StatusCode::OK);
+        assert_eq!(call("operator", AdminRole::Operator, "GET", "/api/users").await, StatusCode::FORBIDDEN);
+        assert_eq!(call("operator", AdminRole::Operator, "GET", "/api/config").await, StatusCode::FORBIDDEN);
+
+        // Admin: everything.
+        assert_eq!(call("admin", AdminRole::Admin, "GET", "/api/users").await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_role_comes_from_store_not_token() {
+        let state = make_state().await;
+        let app = routes::build_router(state.clone()).await;
+
+        // A token claiming admin for the seeded viewer account must not escalate.
+        let response = app
+            .clone()
+            .oneshot(
+                as_user(&state, "viewer", AdminRole::Admin)
+                    .uri("/api/users")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        // Banning an account revokes its outstanding tokens immediately.
+        let mut op = state.auth_store.get("operator").await.unwrap();
+        op.banned = true;
+        state.auth_store.set(&op).await.unwrap();
+        let response = app
+            .oneshot(
+                as_user(&state, "operator", AdminRole::Operator)
+                    .uri("/api/connections")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    /// Minimal plugin exposing `GET|POST /api/echo` that returns the caller identity.
+    struct EchoPlugin(server_core::PluginId);
+
+    impl plugin_sdk::Plugin for EchoPlugin {
+        fn id(&self) -> &server_core::PluginId {
+            &self.0
+        }
+        fn name(&self) -> &str {
+            "echo"
+        }
+        fn version(&self) -> &str {
+            "0.0.0"
+        }
+        fn activate(
+            &mut self,
+            _ctx: plugin_sdk::PluginContext,
+        ) -> plugin_sdk::BoxFuture<'_, server_core::Result<()>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn deactivate(&mut self) -> plugin_sdk::BoxFuture<'_, server_core::Result<()>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn http_router(&self) -> Option<axum::Router> {
+            async fn echo(
+                axum::Extension(id): axum::Extension<plugin_sdk::Identity>,
+            ) -> String {
+                id.user_id
+            }
+            Some(axum::Router::new().route("/api/echo", axum::routing::get(echo).post(echo)))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_plugin_routes_share_admin_auth() {
+        let state = make_state().await;
+        let id = server_core::PluginId::from("io.draox.test.echo");
+        state
+            .plugin_registry
+            .register_builtin(Box::new(EchoPlugin(id.clone())))
+            .unwrap();
+        state.plugin_registry.activate(&id).await.unwrap();
+        let app = routes::build_router(state.clone()).await;
+
+        let call = |username: &'static str, role, method: &'static str| {
+            let app = app.clone();
+            let req = as_user(&state, username, role)
+                .method(method)
+                .uri("/api/echo")
+                .body(Body::empty())
+                .unwrap();
+            async move { app.oneshot(req).await.unwrap().status() }
+        };
+
+        // Identity is still delivered to plugin handlers.
+        assert_eq!(call("viewer", AdminRole::Viewer, "GET").await, StatusCode::OK);
+        // Role policy now applies: viewers cannot mutate through plugin routes.
+        assert_eq!(call("viewer", AdminRole::Viewer, "POST").await, StatusCode::FORBIDDEN);
+        assert_eq!(call("operator", AdminRole::Operator, "POST").await, StatusCode::OK);
+
+        // Tokens of a banned account no longer work on plugin routes either.
+        let mut op = state.auth_store.get("operator").await.unwrap();
+        op.banned = true;
+        state.auth_store.set(&op).await.unwrap();
+        assert_eq!(call("operator", AdminRole::Operator, "GET").await, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_auth() {
+        let state = make_state().await;
+        state.config.write().unwrap().admin_api.api_keys =
+            vec!["viewer:view-key".into(), "admin-key".into()];
+        let app = routes::build_router(state.clone()).await;
+
+        let call = |key: &'static str, uri: &'static str| {
+            let app = app.clone();
+            let req = Request::builder()
+                .uri(uri)
+                .header("x-api-key", key)
+                .body(Body::empty())
+                .unwrap();
+            async move { app.oneshot(req).await.unwrap().status() }
+        };
+
+        assert_eq!(call("view-key", "/api/connections").await, StatusCode::OK);
+        assert_eq!(call("view-key", "/api/users").await, StatusCode::FORBIDDEN);
+        assert_eq!(call("admin-key", "/api/users").await, StatusCode::OK);
+        assert_eq!(call("wrong-key", "/api/connections").await, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_ws_stream_accepts_query_token() {
+        let state = make_state().await;
+        let app = routes::build_router(state.clone()).await;
+        let token = crate::test_support::token(&state, "viewer", AdminRole::Viewer);
+
+        // Passes auth; `oneshot` has no upgradable connection, so the WS extractor
+        // then rejects it — anything but 401/403 proves the token was accepted.
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/ws/events?token={token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_ne!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_query_token_not_accepted_on_rest_routes() {
+        let state = make_state().await;
+        let app = routes::build_router(state.clone()).await;
+        let token = crate::test_support::token(&state, "admin", AdminRole::Admin);
+
+        // Tokens in URLs leak via logs/referrers; only WS upgrades may use them.
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/connections?token={token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_get_config_no_longer_500() {
+        let state = make_state().await;
+        let app = routes::build_router(state.clone()).await;
+
+        let response = app.oneshot(admin_get(&state, "/api/config")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = json_body(response).await;
+        assert_eq!(json["data"]["admin_api"]["jwt_secret"], "[REDACTED]");
+    }
+
+    #[tokio::test]
+    async fn test_update_and_reload_config_record_caller() {
+        let state = make_state().await;
+        let dir = std::env::temp_dir().join(format!("draox-cfg-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.toml");
+        let mut state = state;
+        state.config_path = path.to_string_lossy().into_owned();
+        let app = routes::build_router(state.clone()).await;
+
+        // Round-trip the (redacted) config: previously 500 because AuthContext was missing.
+        let current = json_body(app.clone().oneshot(admin_get(&state, "/api/config")).await.unwrap())
+            .await["data"]
+            .clone();
+        let response = app
+            .clone()
+            .oneshot(
+                admin_request(&state)
+                    .method("PUT")
+                    .uri("/api/config")
+                    .header("content-type", "application/json")
+                    .body(Body::from(current.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(path.exists(), "config file should be written");
+
+        let response = app
+            .oneshot(
+                admin_request(&state)
+                    .method("POST")
+                    .uri("/api/config/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Both config handlers must see the AuthContext inserted by admin_auth.
+        assert_eq!(state.audit_log.query_by_actor("admin").len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limit_returns_429() {
+        let state = make_state().await;
+        state.config.write().unwrap().admin_api.rate_limit_per_sec = 2;
+        let app = routes::build_router(state.clone()).await;
+
+        let mut statuses = Vec::new();
+        for _ in 0..5 {
+            let response = app
+                .clone()
+                .oneshot(admin_get(&state, "/api/connections"))
+                .await
+                .unwrap();
+            statuses.push(response.status());
+        }
+        assert!(statuses.contains(&StatusCode::OK));
+        assert!(statuses.contains(&StatusCode::TOO_MANY_REQUESTS));
+    }
+
+    #[tokio::test]
+    async fn test_login_has_tighter_rate_limit() {
+        let state = make_state().await;
+        state.config.write().unwrap().admin_api.login_rate_limit_per_min = 2;
+        let app = routes::build_router(state).await;
+
+        let mut last = StatusCode::OK;
+        for _ in 0..3 {
+            last = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/auth/login")
+                        .header("content-type", "application/json")
+                        .body(Body::from(r#"{"username":"nobody","password":"x"}"#))
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+                .status();
+        }
+        assert_eq!(last, StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn test_dev_login_bypass_disabled_without_env() {
+        // Debug test builds used to accept admin/draox unconditionally.
+        if std::env::var("DRAOX_ENV").as_deref() == Ok("development") {
+            return;
+        }
+        let state = make_state().await;
+        // Give the seeded admin a real password so only the bypass could accept "draox".
+        crate::seed::seed_default_users(&state.auth_store).await;
+        let mut admin = state.auth_store.get("admin").await.unwrap();
+        admin.password_hash = crate::seed::hash_password("a-real-password").unwrap();
+        state.auth_store.set(&admin).await.unwrap();
+        let app = routes::build_router(state).await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"username":"admin","password":"draox"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

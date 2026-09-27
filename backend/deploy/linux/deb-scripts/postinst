@@ -30,6 +30,20 @@ case "$1" in
                 /etc/draox-server/config.toml
         fi
 
+        # Generate a self-signed TLS cert on first install: tls.enabled=true is the default
+        # and the server refuses to start without a cert (fail-closed). Replace with a CA cert.
+        if [ ! -f /etc/draox-server/certs/server.crt ] && command -v openssl > /dev/null 2>&1; then
+            mkdir -p /etc/draox-server/certs
+            openssl req -x509 -newkey rsa:2048 -nodes                 -keyout /etc/draox-server/certs/server.key                 -out /etc/draox-server/certs/server.crt                 -days 365 -subj "/CN=$(hostname -f 2>/dev/null || hostname)" > /dev/null 2>&1
+            chown root:draox /etc/draox-server/certs/server.key /etc/draox-server/certs/server.crt
+            chmod 640 /etc/draox-server/certs/server.key
+            chmod 644 /etc/draox-server/certs/server.crt
+            echo "  Generated self-signed TLS cert in /etc/draox-server/certs (replace for production)"
+        elif [ ! -f /etc/draox-server/certs/server.crt ]; then
+            echo "  WARNING: openssl not found — provide /etc/draox-server/certs/server.{crt,key}"
+            echo "           or set tls.enabled = false, otherwise the service will not start."
+        fi
+
         # Reload systemd
         systemctl daemon-reload
 

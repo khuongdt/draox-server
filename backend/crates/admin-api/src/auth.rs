@@ -1,13 +1,14 @@
-use axum::extract::{Request, State};
-use axum::http::StatusCode;
+use crate::state::AppState;
+use axum::extract::{ConnectInfo, Request, State};
+use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use governor::clock::DefaultClock;
-use governor::state::{InMemoryState, NotKeyed};
-use governor::{Quota, RateLimiter};
+use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter};
+use ipnet::IpNet;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use plugin_sdk::Identity;
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
@@ -15,33 +16,99 @@ use std::sync::Arc;
 // Rate Limiting
 // ────────────────────────────────────────────────────────
 
-/// A shared rate limiter for the admin API.
-pub type AdminRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>;
+/// Keyed limiters are pruned once they track this many client IPs.
+const RATE_LIMIT_PRUNE_THRESHOLD: usize = 10_000;
 
-/// Create a new admin API rate limiter.
-/// Default: 100 requests per second.
-pub fn create_admin_rate_limiter(requests_per_sec: u32) -> AdminRateLimiter {
-    let quota = Quota::per_second(
-        NonZeroU32::new(requests_per_sec).unwrap_or(NonZeroU32::new(100).unwrap()),
-    );
-    Arc::new(RateLimiter::direct(quota))
+/// Per-client-IP rate limiters for the admin API.
+pub struct AdminRateLimits {
+    general: DefaultKeyedRateLimiter<IpAddr>,
+    login: DefaultKeyedRateLimiter<IpAddr>,
+    trusted_proxies: Vec<IpNet>,
 }
 
-/// Middleware that rate-limits admin API requests.
-pub async fn rate_limit_middleware(request: Request, next: Next) -> Response {
-    // Try to get the rate limiter from extensions
-    if let Some(limiter) = request.extensions().get::<AdminRateLimiter>() {
-        match limiter.check() {
-            Ok(_) => next.run(request).await,
-            Err(_) => (
-                StatusCode::TOO_MANY_REQUESTS,
-                axum::Json(serde_json::json!({"error": "rate limit exceeded"})),
-            )
-                .into_response(),
+impl AdminRateLimits {
+    pub fn new(requests_per_sec: u32, login_per_min: u32) -> Self {
+        let rps = NonZeroU32::new(requests_per_sec).unwrap_or(NonZeroU32::MIN);
+        let login = NonZeroU32::new(login_per_min).unwrap_or(NonZeroU32::MIN);
+        Self {
+            general: RateLimiter::keyed(Quota::per_second(rps)),
+            login: RateLimiter::keyed(Quota::per_minute(login)),
+            trusted_proxies: Vec::new(),
         }
-    } else {
-        // No rate limiter configured, pass through
+    }
+
+    /// Trust `X-Forwarded-For` from these peers (IPs or CIDRs; invalid entries are
+    /// skipped — config validation rejects them earlier).
+    pub fn with_trusted_proxies(mut self, proxies: &[String]) -> Self {
+        self.trusted_proxies = proxies
+            .iter()
+            .filter_map(|p| {
+                p.parse::<IpNet>()
+                    .or_else(|_| p.parse::<IpAddr>().map(IpNet::from))
+                    .ok()
+            })
+            .collect();
+        self
+    }
+
+    fn is_trusted(&self, ip: &IpAddr) -> bool {
+        self.trusted_proxies.iter().any(|net| net.contains(ip))
+    }
+
+    /// Client IP for rate limiting. `X-Forwarded-For` is honored only when the socket
+    /// peer is a trusted proxy; otherwise it is attacker-controlled. The chain is walked
+    /// right-to-left, skipping trusted hops, so a client cannot spoof the leftmost entry.
+    /// `ConnectInfo` is absent in in-process tests (`oneshot`), which share one bucket.
+    fn client_ip(&self, request: &Request) -> IpAddr {
+        let peer = request
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ConnectInfo(addr)| addr.ip())
+            .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+        if !self.is_trusted(&peer) {
+            return peer;
+        }
+        let forwarded = request
+            .headers()
+            .get_all("x-forwarded-for")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .flat_map(|v| v.split(','))
+            .filter_map(|s| s.trim().parse::<IpAddr>().ok())
+            .collect::<Vec<_>>();
+        forwarded
+            .iter()
+            .rev()
+            .find(|ip| !self.is_trusted(ip))
+            .copied()
+            .unwrap_or(peer)
+    }
+}
+
+fn check_limit(limiter: &DefaultKeyedRateLimiter<IpAddr>, ip: &IpAddr) -> bool {
+    if limiter.len() > RATE_LIMIT_PRUNE_THRESHOLD {
+        limiter.retain_recent();
+    }
+    limiter.check_key(ip).is_ok()
+}
+
+// K.D 2026-09-27 P0 Keyed per-IP limiter replaces the unused global limiter; login gets a
+// much tighter budget so the password endpoint cannot be brute-forced.
+/// Middleware that rate-limits admin API requests per client IP.
+pub async fn rate_limit_middleware(
+    State(limits): State<Arc<AdminRateLimits>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let ip = limits.client_ip(&request);
+    let is_login = request.method() == Method::POST && request.uri().path() == "/api/auth/login";
+
+    let allowed = check_limit(&limits.general, &ip) && (!is_login || check_limit(&limits.login, &ip));
+    if allowed {
         next.run(request).await
+    } else {
+        tracing::warn!(client_ip = %ip, path = %request.uri().path(), "admin API rate limit exceeded");
+        error_response(StatusCode::TOO_MANY_REQUESTS, "Too Many Requests", "rate limit exceeded")
     }
 }
 
@@ -66,9 +133,26 @@ impl AdminRole {
     pub fn can_admin(&self) -> bool {
         matches!(self, AdminRole::Admin)
     }
+
+    fn satisfies(&self, required: AdminRole) -> bool {
+        match required {
+            AdminRole::Viewer => true,
+            AdminRole::Operator => self.can_write(),
+            AdminRole::Admin => self.can_admin(),
+        }
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "admin" => Some(AdminRole::Admin),
+            "operator" => Some(AdminRole::Operator),
+            "viewer" => Some(AdminRole::Viewer),
+            _ => None,
+        }
+    }
 }
 
-/// Auth context extracted from request headers.
+/// Auth context inserted into request extensions by [`admin_auth`].
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     pub role: AdminRole,
@@ -81,6 +165,64 @@ pub struct ApiKeyEntry {
     pub key: String,
     pub role: AdminRole,
     pub identity: String,
+}
+
+impl ApiKeyEntry {
+    /// Parse `admin_api.api_keys` entries. Format: `"<role>:<key>"` or a bare `"<key>"`
+    /// (treated as admin). Blank entries are skipped.
+    pub fn parse_all(raw: &[String]) -> Vec<ApiKeyEntry> {
+        raw.iter()
+            .enumerate()
+            .filter_map(|(i, entry)| {
+                let entry = entry.trim();
+                let (role, key) = match entry.split_once(':') {
+                    Some((prefix, rest)) => match AdminRole::parse(prefix) {
+                        Some(role) => (role, rest),
+                        None => (AdminRole::Admin, entry),
+                    },
+                    None => (AdminRole::Admin, entry),
+                };
+                (!key.is_empty()).then(|| ApiKeyEntry {
+                    key: key.to_string(),
+                    role,
+                    identity: format!("api-key#{i}"),
+                })
+            })
+            .collect()
+    }
+}
+
+/// Constant-time comparison so API-key checks do not leak a matching prefix via timing.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Routes reachable without credentials. Everything else is denied by default.
+fn is_public(method: &Method, path: &str) -> bool {
+    matches!(
+        (method.as_str(), path),
+        ("POST", "/api/auth/login") | ("GET" | "HEAD", "/api/health")
+    )
+}
+
+/// Minimum role for a built-in admin route: reads need viewer, mutations need operator,
+/// and user/config/billing management needs admin. New routes inherit these defaults.
+pub fn required_role(method: &Method, path: &str) -> AdminRole {
+    const ADMIN_PREFIXES: [&str; 3] = ["/api/users", "/api/config", "/api/billing"];
+    if ADMIN_PREFIXES
+        .iter()
+        .any(|p| path == *p || path.starts_with(&format!("{p}/")))
+    {
+        return AdminRole::Admin;
+    }
+    if matches!(*method, Method::GET | Method::HEAD) {
+        AdminRole::Viewer
+    } else {
+        AdminRole::Operator
+    }
 }
 
 // ────────────────────────────────────────────────────────
@@ -149,171 +291,144 @@ pub fn validate_jwt_token(
     Ok(token_data.claims)
 }
 
-// ────────────────────────────────────────────────────────
-// Middleware: API key auth
-// ────────────────────────────────────────────────────────
-
-/// Middleware that checks for API key in `X-Api-Key` header or JWT in `Authorization: Bearer`.
-pub async fn api_key_auth(mut request: Request, next: Next) -> Response {
-    // Try JWT Bearer token first
-    if let Some(auth_header) = request
-        .headers()
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-    {
-        if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            if let Some(jwt_config) = request.extensions().get::<JwtConfig>().cloned() {
-                match validate_jwt_token(token, &jwt_config) {
-                    Ok(claims) => {
-                        request.extensions_mut().insert(AuthContext {
-                            role: claims.role,
-                            identity: claims.sub,
-                        });
-                        return next.run(request).await;
-                    }
-                    Err(_) => {
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            axum::Json(serde_json::json!({"error": "invalid JWT token"})),
-                        )
-                            .into_response();
-                    }
-                }
-            }
-        }
-    }
-
-    // Fall back to API key
-    let api_key = request
-        .headers()
-        .get("x-api-key")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
-
-    let Some(key) = api_key else {
-        return (
-            StatusCode::UNAUTHORIZED,
-            axum::Json(serde_json::json!({
-                "error": "missing authentication (X-Api-Key or Authorization: Bearer)"
-            })),
-        )
-            .into_response();
-    };
-
-    let keys = request
-        .extensions()
-        .get::<Vec<ApiKeyEntry>>()
-        .cloned()
-        .unwrap_or_default();
-
-    let entry = keys.iter().find(|e| e.key == key);
-
-    match entry {
-        Some(entry) => {
-            request.extensions_mut().insert(AuthContext {
-                role: entry.role,
-                identity: entry.identity.clone(),
-            });
-            next.run(request).await
-        }
-        None => (
-            StatusCode::UNAUTHORIZED,
-            axum::Json(serde_json::json!({"error": "invalid API key"})),
-        )
-            .into_response(),
-    }
-}
-
-/// Require at least write permission.
-pub async fn require_write(request: Request, next: Next) -> Response {
-    if let Some(ctx) = request.extensions().get::<AuthContext>() {
-        if ctx.role.can_write() {
-            return next.run(request).await;
-        }
-        return (
-            StatusCode::FORBIDDEN,
-            axum::Json(serde_json::json!({"error": "insufficient permissions"})),
-        )
-            .into_response();
-    }
+fn error_response(status: StatusCode, error: &str, message: &str) -> Response {
     (
-        StatusCode::UNAUTHORIZED,
-        axum::Json(serde_json::json!({"error": "not authenticated"})),
+        status,
+        axum::Json(serde_json::json!({
+            "success": false,
+            "error":   error,
+            "message": message,
+        })),
     )
         .into_response()
 }
 
+fn unauthorized(message: &str) -> Response {
+    error_response(StatusCode::UNAUTHORIZED, "Unauthorized", message)
+}
+
 // ────────────────────────────────────────────────────────
-// Middleware: extract Identity from JWT and put it in request extensions
+// Middleware: admin authentication + authorization
 // ────────────────────────────────────────────────────────
 
-/// Middleware that requires a valid `Authorization: Bearer <jwt>` header,
-/// validates it against the AppState's `JwtConfig`, and inserts a
-/// `plugin_sdk::Identity` into the request extensions.
-///
-/// Plugin route handlers then extract it with `Extension<Identity>`,
-/// without ever needing to depend on `admin-api` or know about
-/// `JwtConfig`. Used by `routes::build_router` to gate plugin-contributed
-/// routes.
-pub async fn auth_extract(
-    State(jwt_config): State<JwtConfig>,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    let Some(token) = request
+/// Bearer token from the `Authorization` header, or — for `/ws/*` only — the `token`
+/// query parameter, because browsers cannot set headers on WebSocket upgrades.
+fn bearer_token(request: &Request) -> Option<String> {
+    if let Some(token) = request
         .headers()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-    else {
-        return (
-            StatusCode::UNAUTHORIZED,
-            axum::Json(serde_json::json!({
-                "success": false,
-                "error":   "Unauthorized",
-                "message": "missing Authorization header"
-            })),
-        )
-            .into_response();
-    };
-
-    let claims = match validate_jwt_token(token, &jwt_config) {
-        Ok(c) => c,
-        Err(_) => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                axum::Json(serde_json::json!({
-                    "success": false,
-                    "error":   "Unauthorized",
-                    "message": "invalid or expired token"
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    let identity = Identity::new(claims.sub, format!("{:?}", claims.role).to_lowercase());
-    request.extensions_mut().insert(identity);
-    next.run(request).await
+    {
+        return Some(token.trim().to_string());
+    }
+    if !request.uri().path().starts_with("/ws/") {
+        return None;
+    }
+    request.uri().query()?.split('&').find_map(|pair| {
+        pair.strip_prefix("token=")
+            .filter(|t| !t.is_empty())
+            .map(str::to_string)
+    })
 }
 
-/// Require admin role.
-pub async fn require_admin(request: Request, next: Next) -> Response {
-    if let Some(ctx) = request.extensions().get::<AuthContext>() {
-        if ctx.role.can_admin() {
-            return next.run(request).await;
-        }
-        return (
-            StatusCode::FORBIDDEN,
-            axum::Json(serde_json::json!({"error": "admin role required"})),
-        )
-            .into_response();
+/// Credentials presented by the caller, extracted up front so no `&Request` (whose body
+/// is not `Sync`) is held across an `.await`.
+enum Credentials {
+    Bearer(String),
+    ApiKey(String),
+    None,
+}
+
+fn credentials(request: &Request) -> Credentials {
+    if let Some(token) = bearer_token(request) {
+        return Credentials::Bearer(token);
     }
-    (
-        StatusCode::UNAUTHORIZED,
-        axum::Json(serde_json::json!({"error": "not authenticated"})),
-    )
-        .into_response()
+    match request.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
+        Some(key) => Credentials::ApiKey(key.to_string()),
+        None => Credentials::None,
+    }
+}
+
+async fn authenticate(
+    state: &AppState,
+    credentials: Credentials,
+) -> Result<AuthContext, Box<Response>> {
+    if let Credentials::Bearer(token) = credentials {
+        let claims = validate_jwt_token(&token, &state.jwt_config)
+            .map_err(|_| Box::new(unauthorized("invalid or expired token")))?;
+        // Re-read the account so a ban, deletion or role change takes effect immediately
+        // instead of when the token expires.
+        let user = state
+            .auth_store
+            .get(&claims.sub)
+            .await
+            .ok_or_else(|| Box::new(unauthorized("account no longer exists")))?;
+        if user.banned {
+            return Err(Box::new(unauthorized("account is banned")));
+        }
+        return Ok(AuthContext {
+            role: user.role,
+            identity: user.username,
+        });
+    }
+
+    if let Credentials::ApiKey(key) = credentials {
+        let raw_keys = state
+            .config
+            .read()
+            .map(|c| c.admin_api.api_keys.clone())
+            .unwrap_or_default();
+        return ApiKeyEntry::parse_all(&raw_keys)
+            .into_iter()
+            .find(|e| constant_time_eq(e.key.as_bytes(), key.as_bytes()))
+            .map(|e| AuthContext {
+                role: e.role,
+                identity: e.identity,
+            })
+            .ok_or_else(|| Box::new(unauthorized("invalid API key")));
+    }
+
+    Err(Box::new(unauthorized(
+        "missing authentication (Authorization: Bearer or X-Api-Key)",
+    )))
+}
+
+// K.D 2026-09-27 P0 Router-level auth for every built-in admin route (previously only the
+// plugin sub-router was protected). Also inserts the AuthContext that config handlers need.
+/// Authenticate the caller (JWT or API key), enforce [`required_role`], and insert
+/// [`AuthContext`] plus a plugin-facing [`Identity`] into the request extensions.
+pub async fn admin_auth(
+    State(state): State<AppState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let method = request.method().clone();
+    let path = request.uri().path().to_string();
+    if is_public(&method, &path) {
+        return next.run(request).await;
+    }
+
+    let ctx = match authenticate(&state, credentials(&request)).await {
+        Ok(ctx) => ctx,
+        Err(resp) => return *resp,
+    };
+
+    let required = required_role(&method, &path);
+    if !ctx.role.satisfies(required) {
+        tracing::warn!(identity = %ctx.identity, role = ?ctx.role, required = ?required,
+            %method, %path, "admin API access denied");
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "Forbidden",
+            &format!("{required:?} role required").to_lowercase(),
+        );
+    }
+
+    let identity = Identity::new(ctx.identity.clone(), format!("{:?}", ctx.role).to_lowercase());
+    request.extensions_mut().insert(identity);
+    request.extensions_mut().insert(ctx);
+    next.run(request).await
 }
 
 #[cfg(test)]
@@ -321,10 +436,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_admin_rate_limiter() {
-        let limiter = create_admin_rate_limiter(100);
-        // First request should succeed
-        assert!(limiter.check().is_ok());
+    fn test_rate_limits_are_per_ip() {
+        let limits = AdminRateLimits::new(1, 1);
+        let a: IpAddr = "10.0.0.1".parse().unwrap();
+        let b: IpAddr = "10.0.0.2".parse().unwrap();
+        assert!(check_limit(&limits.general, &a));
+        assert!(!check_limit(&limits.general, &a));
+        // A different client has its own bucket.
+        assert!(check_limit(&limits.general, &b));
+    }
+
+    fn request_from(peer: &str, xff: Option<&str>) -> Request {
+        let mut builder = Request::builder().uri("/api/info");
+        if let Some(xff) = xff {
+            builder = builder.header("x-forwarded-for", xff);
+        }
+        let mut req = builder.body(axum::body::Body::empty()).unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(format!("{peer}:1234").parse::<SocketAddr>().unwrap()));
+        req
+    }
+
+    #[test]
+    fn test_client_ip_ignores_xff_from_untrusted_peer() {
+        let limits = AdminRateLimits::new(1, 1);
+        let ip = limits.client_ip(&request_from("203.0.113.5", Some("1.1.1.1")));
+        assert_eq!(ip, "203.0.113.5".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn test_client_ip_uses_xff_behind_trusted_proxy() {
+        let limits = AdminRateLimits::new(1, 1).with_trusted_proxies(&["172.16.0.0/12".into()]);
+        // Client spoofs a leftmost entry; nginx appends the real address on the right.
+        let ip = limits.client_ip(&request_from("172.18.0.3", Some("9.9.9.9, 198.51.100.7")));
+        assert_eq!(ip, "198.51.100.7".parse::<IpAddr>().unwrap());
+        // No header → fall back to the proxy itself.
+        let ip = limits.client_ip(&request_from("172.18.0.3", None));
+        assert_eq!(ip, "172.18.0.3".parse::<IpAddr>().unwrap());
     }
 
     #[test]
@@ -335,6 +483,52 @@ mod tests {
         assert!(!AdminRole::Operator.can_admin());
         assert!(!AdminRole::Viewer.can_write());
         assert!(!AdminRole::Viewer.can_admin());
+    }
+
+    #[test]
+    fn test_required_role_policy() {
+        assert_eq!(required_role(&Method::GET, "/api/connections"), AdminRole::Viewer);
+        assert_eq!(required_role(&Method::GET, "/ws/events"), AdminRole::Viewer);
+        assert_eq!(required_role(&Method::POST, "/api/guard/ban"), AdminRole::Operator);
+        assert_eq!(required_role(&Method::DELETE, "/api/sessions/x"), AdminRole::Operator);
+        assert_eq!(required_role(&Method::GET, "/api/users"), AdminRole::Admin);
+        assert_eq!(required_role(&Method::POST, "/api/users/bob/ban"), AdminRole::Admin);
+        assert_eq!(required_role(&Method::GET, "/api/config"), AdminRole::Admin);
+        assert_eq!(required_role(&Method::PUT, "/api/billing/plan/c1"), AdminRole::Admin);
+        // Prefix match must respect path segments.
+        assert_eq!(required_role(&Method::GET, "/api/usersettings"), AdminRole::Viewer);
+    }
+
+    #[test]
+    fn test_public_routes_are_minimal() {
+        assert!(is_public(&Method::POST, "/api/auth/login"));
+        assert!(is_public(&Method::GET, "/api/health"));
+        assert!(is_public(&Method::HEAD, "/api/health"));
+        assert!(!is_public(&Method::GET, "/api/health/detailed"));
+        assert!(!is_public(&Method::GET, "/api/auth/login"));
+        assert!(!is_public(&Method::GET, "/api/info"));
+    }
+
+    #[test]
+    fn test_api_key_parsing() {
+        let keys = ApiKeyEntry::parse_all(&[
+            "operator:op-key".to_string(),
+            "bare-key".to_string(),
+            "unknown:with-colon".to_string(),
+            "  ".to_string(),
+        ]);
+        assert_eq!(keys.len(), 3);
+        assert_eq!((keys[0].key.as_str(), keys[0].role), ("op-key", AdminRole::Operator));
+        assert_eq!((keys[1].key.as_str(), keys[1].role), ("bare-key", AdminRole::Admin));
+        // An unrecognized prefix is part of the key itself.
+        assert_eq!(keys[2].key, "unknown:with-colon");
+    }
+
+    #[test]
+    fn test_constant_time_eq() {
+        assert!(constant_time_eq(b"secret", b"secret"));
+        assert!(!constant_time_eq(b"secret", b"secreT"));
+        assert!(!constant_time_eq(b"secret", b"secret2"));
     }
 
     #[test]

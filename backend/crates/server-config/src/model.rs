@@ -269,6 +269,11 @@ pub struct TlsConfig {
     pub key_path: PathBuf,
     pub ca_path: Option<PathBuf>,
     pub mtls: bool,
+    // K.D 2026-09-27 P0 Per-listener switches so TLS also covers WS/HTTP (not only TCP).
+    /// Serve the WebSocket listener over TLS (wss://) when `enabled` is true.
+    pub websocket: bool,
+    /// Serve the HTTP listener over TLS (https://) when `enabled` is true.
+    pub http: bool,
 }
 
 impl Default for TlsConfig {
@@ -279,6 +284,8 @@ impl Default for TlsConfig {
             key_path: PathBuf::from("certs/server.key"),
             ca_path: None,
             mtls: false,
+            websocket: true,
+            http: true,
         }
     }
 }
@@ -665,6 +672,14 @@ pub struct AdminApiConfig {
     pub api_keys: Vec<String>,
     pub cors: CorsConfig,
     pub swagger_enabled: bool,
+    // K.D 2026-09-27 P0 Per-IP rate limits enforced by admin-api middleware.
+    /// Max admin API requests per second per client IP.
+    pub rate_limit_per_sec: u32,
+    /// Max `POST /api/auth/login` attempts per minute per client IP (brute-force guard).
+    pub login_rate_limit_per_min: u32,
+    /// Reverse proxies (IPs or CIDRs) whose `X-Forwarded-For` is trusted for the client IP.
+    /// Empty = always use the socket peer address.
+    pub trusted_proxies: Vec<String>,
 }
 
 impl Default for AdminApiConfig {
@@ -678,6 +693,9 @@ impl Default for AdminApiConfig {
             api_keys: vec![],
             cors: CorsConfig::default(),
             swagger_enabled: true,
+            rate_limit_per_sec: 50,
+            login_rate_limit_per_min: 10,
+            trusted_proxies: vec![],
         }
     }
 }

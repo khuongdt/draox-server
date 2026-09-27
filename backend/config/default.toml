@@ -76,6 +76,8 @@ cert_path = "certs/server.crt"
 key_path = "certs/server.key"
 # ca_path = "certs/ca.crt"      # for mTLS
 mtls = false
+websocket = true                       # serve WS as wss:// when tls.enabled
+http = true                            # serve HTTP as https:// when tls.enabled
 
 # ==== Traffic Guard ====
 [traffic_guard]
@@ -190,6 +192,9 @@ auth_method = "jwt"
 jwt_secret = ""                        # MUST set via DRAOX_ADMIN_JWT_SECRET env var
 api_keys = []
 swagger_enabled = true
+rate_limit_per_sec = 50                # per-IP request budget for the admin API
+login_rate_limit_per_min = 10          # per-IP login attempts (brute-force guard)
+trusted_proxies = []                    # e.g. ["127.0.0.1"] when behind a local reverse proxy
 
 [admin_api.cors]
 enabled = true

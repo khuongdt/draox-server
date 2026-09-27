@@ -169,6 +169,21 @@ ENVEOF
     log_warn "IMPORTANT: Edit $CONFIG_DIR/draox-server.env and set DRAOX_ADMIN_JWT_SECRET"
 fi
 
+# Self-signed TLS cert on first install: tls.enabled=true is the default and the server
+# refuses to start without a cert (fail-closed). Replace with a CA-issued cert.
+if [[ ! -f "$CONFIG_DIR/certs/server.crt" ]]; then
+    if command -v openssl > /dev/null 2>&1; then
+        mkdir -p "$CONFIG_DIR/certs"
+        openssl req -x509 -newkey rsa:2048 -nodes             -keyout "$CONFIG_DIR/certs/server.key"             -out "$CONFIG_DIR/certs/server.crt"             -days 365 -subj "/CN=$(hostname -f 2>/dev/null || hostname)" > /dev/null 2>&1
+        chown "root:$SERVICE_USER" "$CONFIG_DIR/certs/server.key" "$CONFIG_DIR/certs/server.crt"
+        chmod 640 "$CONFIG_DIR/certs/server.key"
+        chmod 644 "$CONFIG_DIR/certs/server.crt"
+        log_warn "Generated self-signed TLS cert in $CONFIG_DIR/certs — replace it for production"
+    else
+        log_warn "openssl not found: provide $CONFIG_DIR/certs/server.{crt,key} or set tls.enabled = false"
+    fi
+fi
+
 # ── Step 5: Set permissions ──
 log_step "Setting permissions"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"

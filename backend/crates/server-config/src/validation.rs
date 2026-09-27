@@ -78,6 +78,20 @@ pub fn validate(config: &DraoxConfig) -> server_core::Result<()> {
         if config.admin_api.auth_method == "jwt" && config.admin_api.jwt_secret.is_empty() {
             errors.push(("admin_api.jwt_secret", "required when auth_method is 'jwt'"));
         }
+        if config.admin_api.rate_limit_per_sec == 0 {
+            errors.push(("admin_api.rate_limit_per_sec", "must be > 0"));
+        }
+        if config.admin_api.login_rate_limit_per_min == 0 {
+            errors.push(("admin_api.login_rate_limit_per_min", "must be > 0"));
+        }
+        if config
+            .admin_api
+            .trusted_proxies
+            .iter()
+            .any(|p| p.parse::<ipnet::IpNet>().is_err() && p.parse::<std::net::IpAddr>().is_err())
+        {
+            errors.push(("admin_api.trusted_proxies", "entries must be IPs or CIDRs"));
+        }
     }
 
     // Port collision check

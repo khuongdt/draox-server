@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+ipnet.workspace = true
 server-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true

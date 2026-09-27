@@ -33,9 +33,13 @@ class WsManager {
   /** Open a WebSocket connection for the given stream if not already open. */
   connect(stream: StreamName): void {
     if (this.sockets[stream]) return;
-    const token = localStorage.getItem('draox_token');
     const base = window.location.origin.replace(/^http/, 'ws');
-    const url = `${base}${WS_PATHS[stream]}?token=${token}`;
+    // Resolve the URL on every (re)connect so a re-login's fresh token is picked up.
+    // The admin API authenticates /ws/* via this query param (browsers cannot set headers).
+    const url = () => {
+      const token = localStorage.getItem('draox_token') ?? '';
+      return `${base}${WS_PATHS[stream]}?token=${encodeURIComponent(token)}`;
+    };
     const ws = new ReconnectingWebSocket(url, [], {
       maxRetries: Infinity,
       minReconnectionDelay: 1000,

@@ -30,4 +30,5 @@ bytes.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-tokio-tungstenite.workspace = true
+# Rustls connector is needed only by the wss:// integration test.
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-webpki-roots"] }

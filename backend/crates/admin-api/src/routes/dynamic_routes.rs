@@ -101,105 +101,20 @@ pub async fn unregister_plugin_routes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::JwtConfig;
-    use crate::auth_store::AdminUserStore;
     use crate::routes::build_router;
-    use crate::state::AppState;
-    use activity_log::metrics::MetricsCollector;
-    use activity_log::{ActivityLog, AuditLog};
+    use crate::test_support::{admin_get, admin_request, make_state};
     use axum::body::Body;
-    use axum::http::{Request, StatusCode};
-    use billing::UsageTracker;
-    use connection_manager::SessionManager;
-    use plugin_host::{ContextBuilder, FullMarketplaceRegistry, PluginRegistry, RouteRegistry};
-    use server_config::model::{SessionConfig, TrafficGuardConfig};
-    use server_core::event::EventBus;
-    use server_core::{ConnectionId, Error, ServerInfo};
-    use socket_server::handler::{BoxFuture, ConnectionHandler};
-    use socket_server::tracker::ConnectionTracker;
-    use std::sync::Arc;
+    use axum::http::StatusCode;
     use tower::ServiceExt;
-    use traffic_guard::TrafficGuard;
-
-    struct TestHandler;
-    impl ConnectionHandler for TestHandler {
-        fn on_connect<'a>(
-            &'a self,
-            _info: &'a server_core::ConnectionInfo,
-        ) -> BoxFuture<'a, server_core::Result<()>> {
-            Box::pin(async { Ok(()) })
-        }
-        fn on_data<'a>(&'a self, _: &'a ConnectionId, _: &'a [u8]) -> BoxFuture<'a, ()> {
-            Box::pin(async {})
-        }
-        fn on_disconnect<'a>(&'a self, _: &'a ConnectionId, _: &'a str) -> BoxFuture<'a, ()> {
-            Box::pin(async {})
-        }
-        fn on_error<'a>(&'a self, _: &'a ConnectionId, _: &'a Error) -> BoxFuture<'a, ()> {
-            Box::pin(async {})
-        }
-    }
-
-    async fn make_state() -> AppState {
-        let event_bus = Arc::new(EventBus::new(16));
-        let tracker = Arc::new(ConnectionTracker::new(1000, 100));
-        let session_mgr = Arc::new(SessionManager::new(
-            SessionConfig::default(),
-            Arc::clone(&event_bus),
-        ));
-        let guard = Arc::new(TrafficGuard::new(
-            TrafficGuardConfig::default(),
-            Arc::new(TestHandler),
-            Arc::clone(&event_bus),
-        ));
-        let cache: Arc<dyn cache_layer::CacheBackend> = Arc::new(
-            cache_layer::MemoryCache::new(&server_config::model::MemoryCacheConfig::default()),
-        );
-        let storage: Arc<dyn data_store::StorageBackend> = Arc::new(
-            data_store::SqliteStorage::new_in_memory().await.unwrap(),
-        );
-        let auth_store = Arc::new(AdminUserStore::new(Arc::clone(&storage)));
-        let ctx_builder = ContextBuilder::new(ServerInfo::default(), Arc::clone(&event_bus), Arc::clone(&cache));
-        let plugin_registry = Arc::new(PluginRegistry::new(ctx_builder, Arc::clone(&event_bus)));
-        let activity_log = Arc::new(ActivityLog::new(10000));
-        let audit_log = Arc::new(AuditLog::new(10000));
-        let metrics = Arc::new(MetricsCollector::new());
-        let usage_tracker = Arc::new(UsageTracker::new());
-        let marketplace = Arc::new(FullMarketplaceRegistry::new());
-        let route_registry = Arc::new(RouteRegistry::new());
-        let config = server_config::DraoxConfig::default();
-        AppState {
-            connection_tracker: tracker,
-            session_manager: session_mgr,
-            traffic_guard: guard,
-            plugin_registry,
-            activity_log,
-            metrics,
-            usage_tracker,
-            audit_log,
-            event_bus,
-            marketplace,
-            route_registry,
-            cache,
-            storage,
-            jwt_config: JwtConfig::default(),
-            auth_store,
-            config: Arc::new(std::sync::RwLock::new(config)),
-            config_path: String::new(),
-        }
-    }
 
     #[tokio::test]
     async fn test_list_routes_empty() {
         let state = make_state().await;
-        let app = build_router(state).await;
+        let app = build_router(state.clone()).await;
 
         let resp = app
             .oneshot(
-                Request::builder()
-                    .uri("/api/routes")
-                    .body(Body::empty())
-                    .unwrap(),
+                admin_get(&state, "/api/routes"),
             )
             .await
             .unwrap();
@@ -231,14 +146,11 @@ mod tests {
             )
             .unwrap();
 
-        let app = build_router(state).await;
+        let app = build_router(state.clone()).await;
 
         let resp = app
             .oneshot(
-                Request::builder()
-                    .uri("/api/routes/io.draox.clans")
-                    .body(Body::empty())
-                    .unwrap(),
+                admin_get(&state, "/api/routes/io.draox.clans"),
             )
             .await
             .unwrap();
@@ -254,7 +166,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_route_via_api() {
         let state = make_state().await;
-        let app = build_router(state).await;
+        let app = build_router(state.clone()).await;
 
         let body = serde_json::json!({
             "method": "POST",
@@ -264,7 +176,7 @@ mod tests {
 
         let resp = app
             .oneshot(
-                Request::builder()
+                admin_request(&state)
                     .method("POST")
                     .uri("/api/routes/io.draox.messaging/register")
                     .header("content-type", "application/json")
