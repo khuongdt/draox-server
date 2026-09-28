@@ -1,4 +1,4 @@
-use crate::auth::{validate_jwt_token, AdminRole};
+use crate::auth::{AdminRole, AuthContext};
 use crate::auth_store::AdminUser;
 use crate::response::ApiResponse;
 use crate::state::AppState;
@@ -6,8 +6,8 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
-use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{Extension, Path, State};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -52,20 +52,6 @@ fn hash_password(password: &str) -> Result<String, ()> {
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
         .map_err(|_| ())
-}
-
-/// Extract caller identity from Authorization Bearer header if present.
-fn caller_identity(headers: &HeaderMap, jwt_secret: &str) -> Option<String> {
-    let token = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())?
-        .strip_prefix("Bearer ")?;
-
-    let cfg = crate::auth::JwtConfig {
-        secret: jwt_secret.to_string(),
-        expiry_secs: 0,
-    };
-    validate_jwt_token(token, &cfg).ok().map(|c| c.sub)
 }
 
 /// GET /api/users
@@ -138,14 +124,12 @@ pub async fn update_user(
 /// DELETE /api/users/:username
 pub async fn delete_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(caller): Extension<AuthContext>,
     Path(username): Path<String>,
 ) -> Result<impl IntoResponse, ErrResp> {
-    // Prevent self-deletion by reading the caller's identity from JWT
-    if let Some(caller) = caller_identity(&headers, &state.jwt_config.secret) {
-        if caller == username {
-            return Err(bad_request("cannot delete your own account"));
-        }
+    // Caller identity comes from admin_auth, so this also holds for API-key callers
+    if caller.identity == username {
+        return Err(bad_request("cannot delete your own account"));
     }
 
     if !state.auth_store.exists(&username).await {
@@ -160,13 +144,11 @@ pub async fn delete_user(
 /// POST /api/users/:username/ban
 pub async fn ban_user(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    Extension(caller): Extension<AuthContext>,
     Path(username): Path<String>,
 ) -> Result<impl IntoResponse, ErrResp> {
-    if let Some(caller) = caller_identity(&headers, &state.jwt_config.secret) {
-        if caller == username {
-            return Err(bad_request("cannot ban your own account"));
-        }
+    if caller.identity == username {
+        return Err(bad_request("cannot ban your own account"));
     }
 
     let mut user = state.auth_store.get(&username).await.ok_or_else(not_found)?;

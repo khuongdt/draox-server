@@ -1,4 +1,5 @@
 use crate::handler::{ConnectionHandler, OutgoingMessage};
+use crate::tls::{tls_connect_info_to_socket_addr, TlsConnectAddr, TlsListener};
 use crate::tracker::ConnectionTracker;
 use crate::ws_dispatch::{WsActionDispatcher, WsFrame};
 use axum::extract::connect_info::ConnectInfo;
@@ -15,6 +16,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
+use tokio_rustls::TlsAcceptor;
 use tracing::{debug, info, warn};
 
 pub struct WsServer {
@@ -24,6 +26,7 @@ pub struct WsServer {
     handler: Arc<dyn ConnectionHandler>,
     event_bus: Arc<EventBus>,
     dispatcher: Option<Arc<dyn WsActionDispatcher>>,
+    tls_acceptor: Option<TlsAcceptor>,
 }
 
 impl WsServer {
@@ -44,7 +47,15 @@ impl WsServer {
             handler,
             event_bus,
             dispatcher: None,
+            tls_acceptor: None,
         }
+    }
+
+    // K.D 2026-09-27 P0 Serve wss:// instead of plain ws:// when TLS is enabled.
+    /// Terminate TLS on this listener (WSS).
+    pub fn with_tls(mut self, acceptor: TlsAcceptor) -> Self {
+        self.tls_acceptor = Some(acceptor);
+        self
     }
 
     /// Attach an action dispatcher. Without one, inbound `request` frames
@@ -91,20 +102,40 @@ impl WsServer {
         let addr = listener
             .local_addr()
             .map_err(|e| Error::Transport(e.to_string()))?;
-        info!(addr = %addr, path = %self.config.path, "WebSocket server listening");
-
         let mut shutdown = shutdown;
-        tokio::spawn(async move {
-            axum::serve(
-                listener,
-                app.into_make_service_with_connect_info::<SocketAddr>(),
-            )
-            .with_graceful_shutdown(async move {
-                shutdown.recv().await;
-            })
-            .await
-            .ok();
-        });
+        let shutdown_fut = async move {
+            shutdown.recv().await;
+        };
+
+        match self.tls_acceptor {
+            Some(acceptor) => {
+                let listener = TlsListener::new(listener, acceptor)
+                    .map_err(|e| Error::Transport(e.to_string()))?;
+                let app = app.layer(axum::middleware::map_request(tls_connect_info_to_socket_addr));
+                info!(addr = %addr, path = %self.config.path, tls = true, "WebSocket server listening (wss)");
+                tokio::spawn(async move {
+                    axum::serve(
+                        listener,
+                        app.into_make_service_with_connect_info::<TlsConnectAddr>(),
+                    )
+                    .with_graceful_shutdown(shutdown_fut)
+                    .await
+                    .ok();
+                });
+            }
+            None => {
+                info!(addr = %addr, path = %self.config.path, tls = false, "WebSocket server listening");
+                tokio::spawn(async move {
+                    axum::serve(
+                        listener,
+                        app.into_make_service_with_connect_info::<SocketAddr>(),
+                    )
+                    .with_graceful_shutdown(shutdown_fut)
+                    .await
+                    .ok();
+                });
+            }
+        }
 
         Ok(addr)
     }
@@ -432,6 +463,52 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert_eq!(tracker.count(), 0);
 
+        shutdown.shutdown();
+    }
+
+    #[tokio::test]
+    async fn test_wss_server_start_and_connect() {
+        use crate::tls::create_tls_acceptor;
+        use crate::tls::tests::{dev_tls_config, insecure_client_config};
+        use tokio_tungstenite::{connect_async_tls_with_config, Connector};
+
+        let tracker = Arc::new(ConnectionTracker::new(100, 10));
+        let handler: Arc<dyn ConnectionHandler> = Arc::new(NoopHandler);
+        let event_bus = Arc::new(EventBus::new(16));
+        let (shutdown, shutdown_rx) = ShutdownSignal::new();
+
+        let config = WebSocketConfig {
+            port: 0,
+            ..WebSocketConfig::default()
+        };
+
+        let acceptor = create_tls_acceptor(&dev_tls_config()).unwrap();
+        let server = WsServer::new(config, "127.0.0.1", Arc::clone(&tracker), handler, event_bus)
+            .with_tls(acceptor);
+        let addr = server.start(shutdown_rx).await.unwrap();
+
+        // wss:// upgrade succeeds and the peer address reaches the tracker.
+        let url = format!("wss://localhost:{}/ws", addr.port());
+        let (ws_stream, _) = connect_async_tls_with_config(
+            &url,
+            None,
+            false,
+            Some(Connector::Rustls(insecure_client_config())),
+        )
+        .await
+        .expect("wss handshake should succeed");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(tracker.count(), 1);
+
+        // Plain ws:// against the TLS port must fail.
+        let plain = tokio::time::timeout(
+            Duration::from_secs(2),
+            connect_async(format!("ws://{addr}/ws")),
+        )
+        .await;
+        assert!(!matches!(plain, Ok(Ok(_))));
+
+        drop(ws_stream);
         shutdown.shutdown();
     }
 

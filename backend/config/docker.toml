@@ -66,6 +66,8 @@ enabled = false
 cert_path = "/etc/draox-server/certs/server.crt"
 key_path = "/etc/draox-server/certs/server.key"
 mtls = false
+websocket = true                       # serve WS as wss:// when tls.enabled
+http = true                            # serve HTTP as https:// when tls.enabled
 
 # ==== Traffic Guard ====
 [traffic_guard]
@@ -179,6 +181,9 @@ auth_method = "jwt"
 jwt_secret = ""                        # Set via DRAOX_ADMIN_JWT_SECRET env var
 api_keys = []
 swagger_enabled = true
+rate_limit_per_sec = 50                # per-IP request budget for the admin API
+login_rate_limit_per_min = 10          # per-IP login attempts (brute-force guard)
+trusted_proxies = ["172.16.0.0/12"]      # docker bridge: trust X-Forwarded-For from the nginx admin container
 
 [admin_api.cors]
 enabled = true

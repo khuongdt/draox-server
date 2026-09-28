@@ -34,8 +34,9 @@ pub async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>, ErrResp> {
-    // Dev bypass: admin/draox works without DB in development or debug builds
+    // Dev bypass: admin/draox works only when DRAOX_ENV=development is set explicitly
     if is_dev_env() && body.username == "admin" && body.password == "draox" {
+        tracing::warn!("dev login bypass used (DRAOX_ENV=development) — never enable in production");
         let token = create_jwt_token("admin", AdminRole::Admin, &state.jwt_config)
             .map_err(|_| internal_error())?;
         state.audit_log.record("admin", AuditAction::LoginSuccess, "auth", None, None, None);
@@ -128,11 +129,12 @@ pub async fn me(
     }
 }
 
+// K.D 2026-09-27 P0 `cfg!(debug_assertions)` enabled the hard-coded admin/draox login in
+// every debug build; require an explicit opt-in instead.
 fn is_dev_env() -> bool {
-    cfg!(debug_assertions)
-        || std::env::var("DRAOX_ENV")
-            .map(|v| v == "development")
-            .unwrap_or(false)
+    std::env::var("DRAOX_ENV")
+        .map(|v| v == "development")
+        .unwrap_or(false)
 }
 
 fn unauthorized() -> ErrResp {

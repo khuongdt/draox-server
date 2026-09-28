@@ -9,12 +9,15 @@ use server_core::Error;
 use std::net::SocketAddr;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
+use crate::tls::TlsListener;
+use tokio_rustls::TlsAcceptor;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
 pub struct HttpServer {
     config: HttpConfig,
     bind_addr: SocketAddr,
+    tls_acceptor: Option<TlsAcceptor>,
 }
 
 impl HttpServer {
@@ -22,7 +25,18 @@ impl HttpServer {
         let bind_addr: SocketAddr = format!("{host}:{}", config.port)
             .parse()
             .unwrap_or_else(|_| SocketAddr::from(([0, 0, 0, 0], config.port)));
-        Self { config, bind_addr }
+        Self {
+            config,
+            bind_addr,
+            tls_acceptor: None,
+        }
+    }
+
+    // K.D 2026-09-27 P0 Serve HTTPS instead of plain HTTP when TLS is enabled.
+    /// Terminate TLS on this listener (HTTPS).
+    pub fn with_tls(mut self, acceptor: TlsAcceptor) -> Self {
+        self.tls_acceptor = Some(acceptor);
+        self
     }
 
     /// Build the axum Router with all middleware configured.
@@ -69,17 +83,33 @@ impl HttpServer {
         let addr = listener
             .local_addr()
             .map_err(|e| Error::Transport(e.to_string()))?;
-        info!(addr = %addr, "HTTP server listening");
-
         let mut shutdown = shutdown;
-        tokio::spawn(async move {
-            axum::serve(listener, router.into_make_service())
-                .with_graceful_shutdown(async move {
-                    shutdown.recv().await;
-                })
-                .await
-                .ok();
-        });
+        let shutdown_fut = async move {
+            shutdown.recv().await;
+        };
+
+        match self.tls_acceptor {
+            Some(acceptor) => {
+                let listener = TlsListener::new(listener, acceptor)
+                    .map_err(|e| Error::Transport(e.to_string()))?;
+                info!(addr = %addr, tls = true, "HTTPS server listening");
+                tokio::spawn(async move {
+                    axum::serve(listener, router.into_make_service())
+                        .with_graceful_shutdown(shutdown_fut)
+                        .await
+                        .ok();
+                });
+            }
+            None => {
+                info!(addr = %addr, tls = false, "HTTP server listening");
+                tokio::spawn(async move {
+                    axum::serve(listener, router.into_make_service())
+                        .with_graceful_shutdown(shutdown_fut)
+                        .await
+                        .ok();
+                });
+            }
+        }
 
         Ok(addr)
     }
@@ -208,6 +238,45 @@ mod tests {
 
         assert!(response.contains("200 OK"));
         assert!(response.contains("OK"));
+
+        shutdown.shutdown();
+    }
+
+    #[tokio::test]
+    async fn test_https_health_endpoint() {
+        use crate::tls::create_tls_acceptor;
+        use crate::tls::tests::{dev_tls_config, tls_roundtrip};
+
+        let config = HttpConfig {
+            port: 0,
+            ..HttpConfig::default()
+        };
+
+        let (shutdown, shutdown_rx) = ShutdownSignal::new();
+        let acceptor = create_tls_acceptor(&dev_tls_config()).unwrap();
+        let server = HttpServer::new(config, "127.0.0.1").with_tls(acceptor);
+        let addr = server.start(shutdown_rx).await.unwrap();
+
+        let response = tls_roundtrip(
+            addr,
+            b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        )
+        .await;
+        assert!(response.contains("200 OK"), "unexpected response: {response}");
+
+        // The same port must refuse to speak plain HTTP.
+        let mut plain = tokio::net::TcpStream::connect(addr).await.unwrap();
+        plain
+            .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut buf = Vec::new();
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            plain.read_to_end(&mut buf),
+        )
+        .await;
+        assert!(!String::from_utf8_lossy(&buf).contains("200 OK"));
 
         shutdown.shutdown();
     }

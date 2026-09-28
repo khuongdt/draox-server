@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  rust:
+    name: Test & clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: Build
+        run: cargo build --workspace --all-targets --locked
+      - name: Test
+        run: cargo test --workspace --locked
+      # The workspace still carries ~120 pre-existing clippy warnings, so only
+      # errors fail the build for now. Tighten to `-D warnings` once they are cleared.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked
+
+  deb:
+    name: Debian package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+      # Guards the license-file / asset paths in crates/draox-server/Cargo.toml.
+      - name: Build .deb
+        run: cargo deb -p draox-server --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: draox-server-deb
+          path: backend/target/debian/*.deb

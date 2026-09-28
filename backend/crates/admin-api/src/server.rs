@@ -49,7 +49,8 @@ impl AdminServer {
         info!(addr = %local_addr, "admin API server started");
 
         tokio::spawn(async move {
-            axum::serve(listener, router)
+            // ConnectInfo feeds the per-client-IP rate limiter.
+            axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
                 .with_graceful_shutdown(async move {
                     shutdown.recv().await;
                     info!("admin API server shutting down");

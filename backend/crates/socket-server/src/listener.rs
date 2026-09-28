@@ -95,20 +95,21 @@ impl MultiProtocolListener {
         let mut addrs = ListenerAddresses::default();
         let host = &self.config.server.host;
 
-        // Load TLS acceptor once if TLS is enabled
+        // K.D 2026-09-27 P0 Fail closed: with tls.enabled a missing/broken cert used to
+        // silently downgrade every listener to plaintext. Refuse to start instead.
         let tls_acceptor = if self.config.tls.enabled {
-            match create_tls_acceptor(&self.config.tls) {
-                Ok(a) => Some(a),
-                Err(e) => {
-                    warn!(error = %e, "TLS disabled: failed to load certificates. \
-                          Run backend/scripts/generate-certs.sh (or .ps1) to create dev certs, \
-                          or set tls.enabled = false in config.");
-                    None
-                }
-            }
+            Some(create_tls_acceptor(&self.config.tls).map_err(|e| {
+                server_core::Error::Config(format!(
+                    "tls.enabled = true but TLS could not be loaded: {e}. \
+                     Run backend/scripts/generate-certs.sh (or .ps1) to create dev certs, \
+                     or set tls.enabled = false in config."
+                ))
+            })?)
         } else {
+            warn!("TLS disabled: TCP, WebSocket and HTTP listeners accept plaintext");
             None
         };
+        let tls = &self.config.tls;
 
         // TCP
         if self.config.tcp.enabled {
@@ -149,12 +150,22 @@ impl MultiProtocolListener {
             if let Some(disp) = &self.ws_dispatcher {
                 ws = ws.with_dispatcher(Arc::clone(disp));
             }
+            match &tls_acceptor {
+                Some(acceptor) if tls.websocket => ws = ws.with_tls(acceptor.clone()),
+                Some(_) => warn!("tls.websocket = false: WebSocket listener stays plaintext (ws://)"),
+                None => {}
+            }
             addrs.ws = Some(ws.start(shutdown.subscribe()).await?);
         }
 
         // HTTP
         if self.config.http.enabled {
-            let http = HttpServer::new(self.config.http.clone(), host);
+            let mut http = HttpServer::new(self.config.http.clone(), host);
+            match &tls_acceptor {
+                Some(acceptor) if tls.http => http = http.with_tls(acceptor.clone()),
+                Some(_) => warn!("tls.http = false: HTTP listener stays plaintext (http://)"),
+                None => {}
+            }
             addrs.http = Some(http.start(shutdown.subscribe()).await?);
         }
 
@@ -181,6 +192,7 @@ mod tests {
         config.websocket.port = 0;
         config.http.port = 0;
         config.server.host = "127.0.0.1".to_string();
+        config.tls.enabled = false;
         config
     }
 
@@ -210,6 +222,7 @@ mod tests {
         config.websocket.enabled = false;
         config.http.port = 0;
         config.server.host = "127.0.0.1".to_string();
+        config.tls.enabled = false;
 
         let config = Arc::new(config);
         let handler: Arc<dyn ConnectionHandler> = Arc::new(NoopHandler);
@@ -223,6 +236,45 @@ mod tests {
         assert!(addrs.udp.is_none());
         assert!(addrs.ws.is_none());
         assert!(addrs.http.is_some());
+
+        shutdown.shutdown();
+    }
+
+    #[tokio::test]
+    async fn test_tls_enabled_with_missing_cert_fails_closed() {
+        let mut config = test_config();
+        config.tls.enabled = true;
+        config.tls.cert_path = "does/not/exist.crt".into();
+        config.tls.key_path = "does/not/exist.key".into();
+
+        let handler: Arc<dyn ConnectionHandler> = Arc::new(NoopHandler);
+        let listener = MultiProtocolListener::new(Arc::new(config), handler, Arc::new(EventBus::new(16)));
+        let (shutdown, _) = ShutdownSignal::new();
+
+        assert!(listener.start(&shutdown).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_tls_enabled_starts_all_listeners() {
+        let mut config = test_config();
+        config.tls = crate::tls::tests::dev_tls_config();
+
+        let handler: Arc<dyn ConnectionHandler> = Arc::new(NoopHandler);
+        let listener = MultiProtocolListener::new(Arc::new(config), handler, Arc::new(EventBus::new(16)));
+        let (shutdown, _) = ShutdownSignal::new();
+
+        let addrs = listener.start(&shutdown).await.unwrap();
+        let http = addrs.http.unwrap();
+        let response = crate::tls::tests::tls_roundtrip(
+            http,
+            b"GET /health HTTP/1.1
+Host: localhost
+Connection: close
+
+",
+        )
+        .await;
+        assert!(response.contains("200 OK"));
 
         shutdown.shutdown();
     }

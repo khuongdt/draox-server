@@ -14,37 +14,54 @@ pub mod sessions;
 pub mod users;
 pub mod ws_streams;
 
-use crate::auth::auth_extract;
+use crate::auth::{admin_auth, rate_limit_middleware, AdminRateLimits};
 use crate::state::AppState;
 use axum::middleware;
 use axum::routing::{get, post, put};
 use axum::Router;
+use std::sync::Arc;
 
 /// Build the complete admin API router.
 ///
 /// Layout:
-/// 1. Hardcoded admin routes (operations / observability surface).
+/// 1. Hardcoded admin routes (operations / observability surface), guarded by
+///    `admin_auth` (JWT or API key + role policy from `auth::required_role`).
 /// 2. Plugin-contributed routes (collected from active plugins via
-///    `PluginRegistry::collect_http_routers`). These are wrapped in the
-///    `auth_extract` middleware so plugin handlers can rely on
-///    `Extension<Identity>` for the authenticated caller.
+///    `PluginRegistry::collect_http_routers`), guarded by the same `admin_auth`,
+///    which also inserts `Extension<Identity>` for plugin handlers.
+/// 3. A per-IP rate limit over everything.
 ///
 /// admin-api stays plugin-agnostic — there are no compile-time imports
 /// of any specific plugin crate.
 pub async fn build_router(state: AppState) -> Router {
-    let admin_router = build_admin_routes(state.clone());
+    let rate_limits = {
+        let cfg = state.config.read().unwrap_or_else(|e| e.into_inner());
+        Arc::new(
+            AdminRateLimits::new(
+                cfg.admin_api.rate_limit_per_sec,
+                cfg.admin_api.login_rate_limit_per_min,
+            )
+            .with_trusted_proxies(&cfg.admin_api.trusted_proxies),
+        )
+    };
+
+    // K.D 2026-09-27 P0 Built-in admin routes were reachable without any credentials.
+    let admin_router = build_admin_routes(state.clone())
+        .layer(middleware::from_fn_with_state(state.clone(), admin_auth));
 
     let plugin_routers = state.plugin_registry.collect_http_routers().await;
     let mut plugin_router = Router::new();
     for r in plugin_routers {
         plugin_router = plugin_router.merge(r);
     }
-    let plugin_router = plugin_router.layer(middleware::from_fn_with_state(
-        state.jwt_config.clone(),
-        auth_extract,
-    ));
+    // K.D 2026-09-27 P0 Plugin routes used a JWT-only check: no role policy and tokens of
+    // banned/deleted accounts kept working. Share admin_auth with the built-in routes.
+    let plugin_router =
+        plugin_router.layer(middleware::from_fn_with_state(state.clone(), admin_auth));
 
-    admin_router.merge(plugin_router)
+    admin_router
+        .merge(plugin_router)
+        .layer(middleware::from_fn_with_state(rate_limits, rate_limit_middleware))
 }
 
 /// Hardcoded admin / observability routes, separated for readability.

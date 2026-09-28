@@ -72,8 +72,14 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     // Resolve JWT secret (used by both AuthHandler and Admin API)
+    // K.D 2026-09-27 P0 A hard-coded fallback secret let anyone forge admin JWTs; use a
+    // random per-process secret instead (tokens are invalidated on restart).
     let jwt_secret = if config.admin_api.jwt_secret.is_empty() {
-        "draox-default-jwt-secret-change-me".to_string()
+        tracing::warn!(
+            "admin_api.jwt_secret is empty — using a random ephemeral secret; \
+             set DRAOX_ADMIN_JWT_SECRET so tokens survive restarts"
+        );
+        random_secret()
     } else {
         config.admin_api.jwt_secret.clone()
     };
@@ -286,9 +292,21 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 256-bit random secret (two OS-RNG backed UUIDv4s) for the ephemeral JWT fallback.
+fn random_secret() -> String {
+    format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_random_secret_is_unique_and_long() {
+        let a = random_secret();
+        assert_eq!(a.len(), 64);
+        assert_ne!(a, random_secret());
+    }
 
     #[test]
     fn test_server_info() {
